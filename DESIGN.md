@@ -87,7 +87,7 @@
 | 영상(역량 H) | MJPEG/WebRTC (별도 파이프라인) | 텍스트 플롯과 분리 설계 |
 | 원격(201) | 런치=SSH(asyncssh), 데이터=ROS2(zenoh) | 하이브리드 |
 | 모니터 | psutil + `sensors`/`/sys/class/thermal` | 201 stats는 ROS2 우선, SSH fallback |
-| 배포 | colcon package + systemd | 202에 pip 설치 선행 |
+| 배포 | colcon package(ament_python) + systemd | **의존성 SSOT=`package.xml`(rosdep)**. 새 머신: `rosdep install --from-paths src --ignore-src -y` 한 줄 자동(수동 pip 없음). 키 5개(fastapi/uvicorn/asyncssh/psutil/yaml) rosdistro 존재 실측(2026-06-09) |
 
 > **기성 도구(Foxglove/rosbridge/PlotJuggler/rqt) 미채택** — 프로세스 오케스트레이션·SSH·zenoh·프로파일을 못 함(부속 A §2). 커스텀 백엔드 불가피.
 

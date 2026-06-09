@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>w_robot_testbench</name>
+  <version>0.3.0</version>
+  <description>웹 기반 ROS2 로봇 테스트벤치 — 테스트 프로젝트 패러다임 (DESIGN v0.3)</description>
+  <maintainer email="jeongmin.choi@wattrobotics.ai">jeongmin.choi</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- 의존성 SSOT — 새 머신: `rosdep install --from-paths src --ignore-src -y` 한 줄로 자동 설치.
+       (2026-06-09 202 rosdep DB 실측: 아래 키 전부 resolve 확인) -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>python3-fastapi</exec_depend>
+  <exec_depend>python3-uvicorn</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-psutil</exec_depend>
+  <exec_depend>python3-asyncssh</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

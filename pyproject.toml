@@ -1,27 +1,6 @@
-[project]
-name = "w-robot-testbench"
-version = "0.3.0"
-description = "웹 기반 ROS2 로봇 테스트벤치 — 테스트 프로젝트 패러다임 (DESIGN v0.3)"
-requires-python = ">=3.12"
-dependencies = [
-    "fastapi",
-    "uvicorn[standard]",
-    "pyyaml",
-    "psutil",
-    "asyncssh",
-]
-# rclpy 는 시스템 ROS2 Jazzy(apt) 제공 — pip 미설치. source /opt/ros/jazzy/setup.bash 로 주입.
-
-[project.scripts]
-testbench = "testbench.main:main"
-
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools.packages.find]
-where = ["backend"]
-
+# 의존성 SSOT = package.xml (rosdep). 빌드 = colcon ament_python (setup.py).
+# 본 파일은 ruff 린트 설정만 (개발 편의). [project]/[build-system]은 두지 않음
+# — ament_python(setup.py) 빌드와 충돌 방지.
 [tool.ruff]
 line-length = 100
 target-version = "py312"
