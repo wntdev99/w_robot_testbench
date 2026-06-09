@@ -7,7 +7,7 @@
 
 ## ✅ 완료한 작업 (순차)
 
-1. `feat/testbench` 워크트리 생성 (main은 다른 에이전트 작업, 격리 진행)
+1. `feat/testbench` 워크트리 단독 진행 — **main 워크트리 구현물은 무시(merge 안 함)**
 2. 기존 docs 3종(부속 A 도구권장 / B 52테스트매핑 / C 와이어프레임) + DESIGN v0.2 정독
 3. **핵심 패러다임 확정**: "테스트 프로젝트" = 사용자가 GUI로 런타임 저작하는 1급 객체
 4. 부속 D(`docs/test-project-model.md`) 신규 작성 — 데이터모델·실행 라이프사이클 SSOT
@@ -24,6 +24,7 @@
 15. **실로봇 아키텍처 4대 가정 검증**(2026-06-09) — zenoh·SSH무인·프로세스식별·introspection + cmd_vel=Twist·diagnostics 전부 ✅. 202→201 SSH 키 배포. 기록: `docs/verification-2026-06-09.md` + `scripts/verify_assumptions.sh`
 16. **프로세스 기동·종료 검증**(reconciler 심장) — 로컬 단일/그룹(PGID 트리)·원격 기동/지속(setsid)/PID종료 전부 ✅. 구현 지침 도출: setsid 기동 + PID/PGID 종료, `pkill -f` 금지(오살 실측)
 17. **Clean-Slate + baseline 기동 end-to-end 실증**(백엔드 mock) — 실가동 런치 전부 종료(202·201=0) → zenoh·robot·control 순차 기동+healthcheck 전부 ✅ → baseline 노드만 복구. 스크립트: `scripts/bootgate_test_{202,201}.sh`
+18. 검증 종료 — 테스트 baseline 전부 종료(202 노드 0, 202·201 ROS proc 0, 로봇 정리). 검증 커밋: `ab7b791`(4대가정)·`d150268`(프로세스)·`89563b4`(부트게이트)
 
 ---
 
