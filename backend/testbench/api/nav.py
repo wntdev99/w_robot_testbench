@@ -1,5 +1,7 @@
-"""네비게이션 시각화 API — 맵 PNG/메타 + 오버레이(scan/footprint/pose)."""
+"""네비게이션 시각화 API — 맵 PNG/메타 + 오버레이(scan/footprint/pose) + 주행 취소."""
 from __future__ import annotations
+
+import asyncio
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
@@ -28,3 +30,19 @@ async def overlay(request: Request):
     nav = request.app.state.ctx.nav
     nav.ensure_started()
     return nav.overlay()
+
+
+NAV_ACTIONS = ["/navigate_to_pose", "/navigate_through_poses"]
+
+
+@router.post("/cancel")
+async def cancel(request: Request):
+    """진행 중인 네비게이션(액션 goal) 전체 취소."""
+    ros = request.app.state.ctx.ros
+    out = {}
+    for a in NAV_ACTIONS:
+        try:
+            out[a] = await asyncio.to_thread(ros.cancel_all_goals, a, 1.5)
+        except Exception as e:  # noqa: BLE001 — 액션 서버 미존재 등
+            out[a] = {"error": str(e)}
+    return out

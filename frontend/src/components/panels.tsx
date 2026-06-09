@@ -667,6 +667,8 @@ export function NavWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () 
             className={cn("rounded px-2 py-0.5 font-medium", mode === "initialpose" ? "bg-ok text-white" : "bg-ok/10 text-ok")}>2D Pose</button>
           <button onClick={() => setMode((m) => (m === "goal" ? null : "goal"))}
             className={cn("rounded px-2 py-0.5 font-medium", mode === "goal" ? "bg-brand-500 text-white" : "bg-brand-50 text-brand-700")}>Nav Goal</button>
+          <button onClick={() => api.navCancel().then((r) => { const n = Object.values(r).reduce((s: number, v: any) => s + (v?.cancelled || 0), 0); setMsg(`주행 취소 (${n}건)`); }).catch((e) => setMsg(String(e)))}
+            className="rounded bg-danger/10 px-2 py-0.5 font-medium text-danger">주행취소</button>
           <span className="h-3 w-px bg-surface-line" />
           {(["scan", "footprint", "pose"] as const).map((k) => (
             <label key={k} className="flex items-center gap-1 text-ink-soft">

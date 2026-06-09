@@ -467,3 +467,16 @@ class RosBridge(Node):
             return {"ok": False, "reason": "unknown goal_id"}
         g[1].cancel_goal_async()
         return {"ok": True, "goal_id": goal_id}
+
+    def cancel_all_goals(self, action_name: str, timeout: float = 2.0) -> dict:
+        """액션 서버의 모든 goal 취소 (외부에서 /goal_pose 로 시작된 것 포함).
+
+        action_msgs/srv/CancelGoal 에 빈 goal_info(uuid 0, stamp 0) → 전체 취소.
+        """
+        res = self.call_service_sync(
+            "action_msgs/srv/CancelGoal",
+            f"{action_name}/_action/cancel_goal",
+            {"goal_info": {"goal_id": {"uuid": [0] * 16}, "stamp": {"sec": 0, "nanosec": 0}}},
+            timeout=timeout,
+        )
+        return {"action": action_name, "cancelled": len(res.get("goals_canceling", []))}

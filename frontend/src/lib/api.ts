@@ -45,6 +45,7 @@ export const api = {
   cameraTopics: () => req<{ available: boolean; topics: { topic: string; type: string; compressed: boolean }[] }>("/api/camera/topics"),
   navMeta: () => req<{ available: boolean; has_map: boolean; resolution?: number; width?: number; height?: number; origin?: { x: number; y: number } }>("/api/nav/map/meta"),
   navOverlay: () => req<{ pose: { x: number; y: number; yaw: number } | null; footprint: number[][]; scan: number[][] }>("/api/nav/overlay"),
+  navCancel: () => req<Record<string, any>>("/api/nav/cancel", { method: "POST" }),
   topics: (includeHidden = false) =>
     req<{ topic: string; types: string[]; publishers: number; subscribers: number; plottable: boolean }[]>(
       `/api/topics?include_hidden=${includeHidden}`,
