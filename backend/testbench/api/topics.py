@@ -43,6 +43,21 @@ async def list_services(request: Request):
     return request.app.state.ctx.ros.list_services()
 
 
+@router.get("/services/fields")
+async def service_fields(service: str, request: Request, type: str | None = None):
+    """서비스 Request 의 필드를 타입 정의로 미리 추출(명령 폼 생성용)."""
+    ros = request.app.state.ctx.ros
+    stype = type
+    if not stype:
+        for n, types in ros.get_service_names_and_types():
+            if n == service and types:
+                stype = types[0]
+                break
+    if not stype:
+        raise HTTPException(404, f"서비스 타입 미상: {service}. type 파라미터로 지정 가능")
+    return {"service": service, "type": stype, "fields": ros.service_request_fields(stype)}
+
+
 @router.get("/diagnostics")
 async def diagnostics(request: Request):
     return request.app.state.ctx.ros.diagnostics_snapshot()

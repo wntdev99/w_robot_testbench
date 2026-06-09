@@ -37,5 +37,12 @@ export const api = {
     }),
   publish: (topic: string, type: string, data: any) =>
     req<any>("/api/publish", { method: "POST", body: JSON.stringify({ topic, type, data }) }),
+  services: () => req<{ service: string; types: string[] }[]>("/api/services"),
+  serviceFields: (service: string, type?: string) =>
+    req<{ service: string; type: string; fields: { path: string; base_type: string; array: boolean; plottable: boolean }[] }>(
+      `/api/services/fields?service=${encodeURIComponent(service)}${type ? `&type=${encodeURIComponent(type)}` : ""}`,
+    ),
+  callService: (type: string, name: string, request: any) =>
+    req<any>("/api/service", { method: "POST", body: JSON.stringify({ type, name, request }) }),
   estop: () => req<any>("/api/emergency/stop", { method: "POST" }),
 };

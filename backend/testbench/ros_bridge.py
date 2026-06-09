@@ -47,6 +47,14 @@ _NUMERIC_PRIMS = {
 }
 
 
+def _normalize_service(type_str: str) -> str:
+    """'pkg/Srv' → 'pkg/srv/Srv' 정규화."""
+    parts = type_str.split("/")
+    if len(parts) == 2:
+        return f"{parts[0]}/srv/{parts[1]}"
+    return type_str
+
+
 def _split_array(ftype: str) -> tuple[str, bool]:
     """'sequence<double>' / 'double[3]' / 'sequence<double, 5>' → ('double', True)."""
     m = re.match(r"^sequence<(.+?)(?:,\s*\d+)?>$", ftype)
@@ -127,16 +135,31 @@ class RosBridge(Node):
             return self._field_cache[norm]
         out: list[dict[str, Any]] = []
         try:
-            self._collect_fields(norm, "", out, 0)
+            self._fields_of_class(get_message(norm), "", out, 0)
         except Exception as exc:  # noqa: BLE001 — 미빌드/외부 타입 등
             logger.debug("타입 필드 분석 실패 %s: %s", type_str, exc)
         self._field_cache[norm] = out
         return out
 
-    def _collect_fields(self, type_str: str, prefix: str, out: list, depth: int) -> None:
+    def service_request_fields(self, srv_type: str) -> list[dict[str, Any]]:
+        """서비스 Request 타입의 leaf 필드 목록 (명령 폼 생성용)."""
+        if not srv_type:
+            return []
+        norm = _normalize_service(srv_type)
+        cache_key = f"srv:{norm}"
+        if cache_key in self._field_cache:
+            return self._field_cache[cache_key]
+        out: list[dict[str, Any]] = []
+        try:
+            self._fields_of_class(get_service(norm).Request, "", out, 0)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("서비스 필드 분석 실패 %s: %s", srv_type, exc)
+        self._field_cache[cache_key] = out
+        return out
+
+    def _fields_of_class(self, cls: Any, prefix: str, out: list, depth: int) -> None:
         if depth > 5:
             return
-        cls = get_message(type_str)
         for name, ftype in cls.get_fields_and_field_types().items():
             if name == "header" and depth == 0:
                 continue
@@ -144,8 +167,8 @@ class RosBridge(Node):
             path = f"{prefix}.{name}" if prefix else name
             if "/" in base:  # 중첩 메시지
                 if is_array:
-                    continue  # 메시지 배열(예: DiagnosticArray.status)은 별도 처리 영역
-                self._collect_fields(_normalize_type(base), path, out, depth + 1)
+                    continue  # 메시지 배열은 별도 처리 영역
+                self._fields_of_class(get_message(_normalize_type(base)), path, out, depth + 1)
             else:
                 out.append({
                     "path": path,
@@ -256,7 +279,7 @@ class RosBridge(Node):
 
     # ── service (동기 호출, executor 스레드에서 spin) ──
     def call_service_sync(self, srv_type: str, name: str, request: dict, timeout: float = 5.0) -> dict:
-        srv_cls = get_service(_normalize_type(srv_type) if "/srv/" not in srv_type else srv_type)
+        srv_cls = get_service(_normalize_service(srv_type))
         client = self.create_client(srv_cls, name)
         if not client.wait_for_service(timeout_sec=timeout):
             self.destroy_client(client)
