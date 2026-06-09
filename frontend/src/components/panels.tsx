@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { X, GripVertical } from "lucide-react";
 import { api, recordingDownloadUrl, cameraStreamUrl, navMapUrl } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { Card } from "@/components/Card";
@@ -119,12 +119,23 @@ function DataView({ view, labels, latest, windowSec, height }: {
   return <PlotPanel title="" seriesLabels={labels} latest={latest} windowSec={windowSec} height={height} />;
 }
 
+// 드래그 핸들 컨텍스트 — 워크스페이스의 SortablePanel 이 제공, Shell 헤더의 그립이 소비
+type DragHandle = { setActivatorNodeRef: (el: HTMLElement | null) => void; attributes: any; listeners: any } | null;
+export const SortableHandleContext = createContext<DragHandle>(null);
+
 function Shell({ title, onRemove, canRemove, head, children }: {
   title: string; onRemove: () => void; canRemove: boolean; head?: React.ReactNode; children: React.ReactNode;
 }) {
+  const handle = useContext(SortableHandleContext);
   return (
     <Card className="min-w-0">
       <div className="flex items-center gap-2 mb-3">
+        {handle && (
+          <button ref={handle.setActivatorNodeRef} {...handle.attributes} {...handle.listeners}
+            title="드래그로 이동" className="-ml-1 cursor-grab text-ink-faint hover:text-ink-soft active:cursor-grabbing touch-none">
+            <GripVertical size={14} />
+          </button>
+        )}
         <span className="text-xs font-semibold text-ink-faint uppercase tracking-wide">{title}</span>
         <div className="ml-auto flex items-center gap-2">{head}
           {canRemove && (

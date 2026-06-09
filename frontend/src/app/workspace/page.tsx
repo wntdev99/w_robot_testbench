@@ -4,13 +4,32 @@ import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench, Rocket, Gamepad2,
 import { api } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { cn } from "@/lib/cn";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
-  Panel, PanelType, Topic,
+  Panel, PanelType, Topic, SortableHandleContext,
   PlotWidget, ControllersWidget, DiagnosticsWidget, CommandWidget, LaunchWidget, TeleopWidget, RecorderWidget, CameraWidget, NavWidget,
 } from "@/components/panels";
 
 let _pid = 0;
 const nextId = () => `w${++_pid}`;
+
+// 드래그로 순서 재배치되는 패널 래퍼 — 그립 핸들만 끌림(패널 내부 인터랙션 보호)
+function SortablePanel({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform), transition,
+    zIndex: isDragging ? 50 : undefined, opacity: isDragging ? 0.6 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <SortableHandleContext.Provider value={{ setActivatorNodeRef, attributes, listeners }}>
+        {children}
+      </SortableHandleContext.Provider>
+    </div>
+  );
+}
 
 // 실행 중 런치 바 (서버 202 + 컨트롤러 201) — 진입 시 1회 로드 + 수동 새로고침(SSH 스캔은 버튼으로)
 function RunningBar() {
@@ -89,6 +108,19 @@ export default function WorkspacePage() {
     [...subbed.current].forEach((t) => { if (!needed.has(t)) { unsubscribe(t); subbed.current.delete(t); } });
   }, [panels, topics]); // eslint-disable-line
   useEffect(() => () => { subbed.current.forEach((t) => unsubscribe(t)); }, []); // eslint-disable-line
+
+  // 드래그 재배치
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const onDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (over && active.id !== over.id) {
+      setPanels((ps) => {
+        const oldI = ps.findIndex((p) => p.id === active.id);
+        const newI = ps.findIndex((p) => p.id === over.id);
+        return oldI < 0 || newI < 0 ? ps : arrayMove(ps, oldI, newI);
+      });
+    }
+  };
 
   const update = (id: string, patch: Partial<Panel>) =>
     setPanels((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
@@ -190,22 +222,26 @@ export default function WorkspacePage() {
         </div>
       </div>
 
-      <div className={cn("grid gap-4", cols === 1 ? "grid-cols-1" : cols === 2 ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1 xl:grid-cols-3")}>
-        {panels.map((p) => {
-          const common = { panel: p, onRemove: () => remove(p.id), canRemove };
-          if (p.type === "plot")
-            return <PlotWidget key={p.id} {...common} topics={visible} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} />;
-          if (p.type === "command")
-            return <CommandWidget key={p.id} {...common} topics={topics} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} />;
-          if (p.type === "launch") return <LaunchWidget key={p.id} {...common} />;
-          if (p.type === "recorder") return <RecorderWidget key={p.id} {...common} topics={visible} />;
-          if (p.type === "camera") return <CameraWidget key={p.id} {...common} onChange={(patch) => update(p.id, patch)} />;
-          if (p.type === "nav") return <NavWidget key={p.id} {...common} />;
-          if (p.type === "teleop") return <TeleopWidget key={p.id} {...common} onChange={(patch) => update(p.id, patch)} />;
-          if (p.type === "controllers") return <ControllersWidget key={p.id} {...common} />;
-          return <DiagnosticsWidget key={p.id} {...common} onChange={(patch) => update(p.id, patch)} />;
-        })}
-      </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={panels.map((p) => p.id)} strategy={rectSortingStrategy}>
+          <div className={cn("grid gap-4", cols === 1 ? "grid-cols-1" : cols === 2 ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1 xl:grid-cols-3")}>
+            {panels.map((p) => {
+              const common = { panel: p, onRemove: () => remove(p.id), canRemove };
+              const widget =
+                p.type === "plot" ? <PlotWidget {...common} topics={visible} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} />
+                : p.type === "command" ? <CommandWidget {...common} topics={topics} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} />
+                : p.type === "launch" ? <LaunchWidget {...common} />
+                : p.type === "recorder" ? <RecorderWidget {...common} topics={visible} />
+                : p.type === "camera" ? <CameraWidget {...common} onChange={(patch) => update(p.id, patch)} />
+                : p.type === "nav" ? <NavWidget {...common} />
+                : p.type === "teleop" ? <TeleopWidget {...common} onChange={(patch) => update(p.id, patch)} />
+                : p.type === "controllers" ? <ControllersWidget {...common} />
+                : <DiagnosticsWidget {...common} onChange={(patch) => update(p.id, patch)} />;
+              return <SortablePanel key={p.id} id={p.id}>{widget}</SortablePanel>;
+            })}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       {/* 스냅샷 저장 모달 (Toss풍) */}
       {saveOpen && (
