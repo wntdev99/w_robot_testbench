@@ -138,5 +138,187 @@ L7 카메라/영상           : MJPEG/WebRTC 스트림·이미지뷰·USB허브 
 
 ---
 
-<!-- §5 레포구조부터 이어서 진행 -->
+## 5. 레포 구조
+
+```
+w_robot_testbench/
+├── DESIGN.md                       # 본 SSOT
+├── docs/                           # 부속 A/B/C/D + (예정) 01~06 하우스 문서 체계
+├── pyproject.toml                  # 백엔드
+├── config/
+│   ├── testbench.yaml              # 서버/머신/zenoh/liveness
+│   ├── baseline.yaml               # 동적 baseline (관리자 페이지가 수정 · 빈 집합 허용 · 부속 D §2.5.1)
+│   ├── projects/                   # 사용자 테스트 프로젝트 (JSON, 런타임 CRUD)
+│   │   └── builtin/*.yaml          # 읽기전용 튜토리얼 프로젝트 (git-tracked, 예: teleop)
+│   └── records/                    # 실행 결과 CSV/JSON·verdict (자산화)
+├── backend/testbench/
+│   ├── main.py                     # rclpy.init→Node+executor→project_store 로드→boot_gate→FastAPI→uvicorn
+│   ├── ros/                        # node, introspect, subscriber_pool, publisher, service_action, controller
+│   ├── procman/                    # local, remote_ssh, zenoh, boot_gate, owned_registry, reconciler
+│   ├── projects/                   # store(CRUD/복제), runner(수렴→preflight→live→cycle/seq), preflight
+│   ├── widgets/                    # 위젯 종류별 핸들러 + 의존리소스 파생 + 동적폼(타입 introspect)
+│   ├── monitor/                    # local_stats, remote_stats (plot.system 공급)
+│   ├── recorder/                   # csv/json, counters, verdict
+│   ├── emergency.py                # 전역 E-stop
+│   ├── ws_manager.py / ros_bridge.py
+│   ├── api/                        # REST 라우터
+│   └── ws/                         # WebSocket 핸들러
+└── frontend/                       # Next.js 14
+    └── src/
+        ├── app/                    # 라우트: / (프로젝트 목록·홈), projects/[id] (편집·실행),
+        │                           #         system (인프라·모니터), admin (baseline), data (자산)
+        ├── components/             # StatusPulse, EmergencyStopBar, GridLayout, WidgetRegistry,
+        │                           #   widgets/(ControlPub·ControlService·ControlAction·PlotTopic·
+        │                           #   PlotSystem·StateView·Diagnostics·ImageView), ParamForm(zod)
+        ├── hooks/                  # useWebSocket, useApi, useProjectRun
+        ├── api/ lib/
+```
+> v0.2 대비: `config/profiles|subsystems|tests|snapshots` → **`config/projects/`(+`builtin/`)** + `baseline.yaml`로 통합. backend `manifest`/`runner` → **`projects/`(store·runner·preflight)** 로, `procman`에 **boot_gate·owned_registry·reconciler** 추가, **`widgets/`** 신설. frontend 9개 라우트 → **프로젝트 중심 5개**로 축소(§8).
+
+---
+
+## 6. 선언형 스키마 (요약 — 상세 부속 D)
+
+v0.2의 3종(`profile`/`subsystem`/`test`)은 **테스트 프로젝트 단일 스키마**로 통합됐다. 본 절은 골격만 싣고, 위젯 카탈로그·동적폼·라이프사이클 등 상세는 **부속 D**가 SSOT다.
+
+### 6.1 `testbench.yaml` (전역 설정)
+```yaml
+server: { host: 0.0.0.0, port: 8080 }
+machines:
+  server:     { host: 192.168.34.202, role: server }
+  controller: { host: 192.168.34.201, ssh_user: ubuntu, ws: ~/colcon_ws,
+                setup: "export LC_ALL=C; source ~/colcon_ws/install/setup.bash" }
+zenoh: { router_cmd: "ros2 run rmw_zenoh_cpp rmw_zenohd", check: {method: process, match: rmw_zenohd} }
+liveness: { controller_machine: { method: ping, host: 192.168.34.201, interval_s: 5 } }
+boot_gate: { scan_ros_procs: true, on_existing: ask }   # Clean-Slate 부팅(부속 D §2.5)
+```
+
+### 6.2 `baseline.yaml` (동적 baseline · 관리자 수정 · 부속 D §2.5.1)
+```yaml
+baseline:                            # 빈 집합([]) 허용 — 201 미사용 등
+  - { id: zenoh,      machine: server,     kind: run,    command: "ros2 run rmw_zenoh_cpp rmw_zenohd",
+      skip_if_running: true, healthcheck: {type: process, match: rmw_zenohd} }
+  - { id: robot_urdf, machine: server,     kind: launch, command: "ros2 launch w_type_mm robot.launch.py",
+      healthcheck: {type: topic, topic: /robot_description} }
+  - { id: controller, machine: controller, kind: launch, depends_on: [robot_urdf],
+      command: "ros2 launch w_type_mm control.launch.py" }   # 201 SSH
+```
+
+### 6.3 테스트 프로젝트 (`config/projects/*.json` · builtin은 `builtin/*.yaml`)
+부속 D §2의 스키마. 골격만 재게시:
+```yaml
+test_project:
+  id / name / description
+  origin: user                       # user | builtin(읽기전용)
+  cloned_from: null                  # 복제 원본 id
+  layout: { grid, widgets: [...] }   # 위젯(제어/플롯/상태/diagnostics/영상) — 부속 D §3
+  processes: [...]                   # 필요 런치/노드 (= 구 profile)
+  resources: { derived: true, require: [...] }   # 위젯에서 파생된 의존 리소스 + 보강
+  policy: { exclusive: true, on_orphan: ask, cleanup_adhoc_on_stop: true }
+  runner: { mode: manual|cycle|sequence, ... }   # 반복 내구성 등 (부속 D §2-E)
+  record: { topics, export, counters, verdict: manual }   # 자산화 + 수동 합/불
+```
+
+> 예) **builtin 텔레옵 프로젝트**: `processes`=[teleop_joy, twist_mux], 위젯=조이스틱(`control`)·`cmd_vel`(state)·`joint_states`/모터온도(`plot`), `runner.mode: manual`. → §4.2의 "텔레옵도 프로젝트" 구현체이자 첫 튜토리얼.
+
+---
+
+## 7. API / WebSocket 계약 (요지)
+
+### 7.1 REST
+| 경로 | 기능 |
+|---|---|
+| `GET /api/system/status` | zenoh·202/201 연결("단독/함께")·CPU/온도/net |
+| `GET /api/boot/status` · `POST /api/boot/resolve` | **Clean-Slate 게이트**: 잔존 ROS 프로세스 목록 / `{action: kill\|cancel}` (부속 D §2.5) |
+| `GET·PUT /api/baseline` | 동적 baseline 조회·수정(관리자, 빈 집합 허용) |
+| `GET /api/projects` · `POST /api/projects` | 프로젝트 목록 / 생성 |
+| `GET·PUT·DELETE /api/projects/{id}` | 단건 CRUD (`origin: builtin`은 읽기전용) |
+| `POST /api/projects/{id}/duplicate` | 복제(builtin→user 시작점) |
+| `POST /api/projects/{id}/run` · `/stop` | 실행(수렴→preflight→live) / 정지·정리(provenance 기반) |
+| `POST /api/projects/{id}/run/decision` | 실행 중 결정: orphan `kill\|keep\|abort`, 보강 후 재preflight |
+| `POST /api/projects/{id}/verdict` | **수동 합/불·코멘트 기록**(L6, 자동 판정 없음) |
+| `GET /api/topics?refresh=1` · `/{n}/type` · `/services` · `/actions` | 런타임 introspect(위젯 동적폼·preflight 입력) |
+| `POST /api/publish` · `/service` · `/action` | 위젯 백킹 동적 명령(친화 폼) |
+| `GET /api/controllers` · `POST /api/controllers/switch` | controller_manager |
+| `GET /api/processes` | **owned-registry 조회 + 난입(foreign) 감지** |
+| `POST /api/record/start\|stop?format=csv\|json` | 자산화(프로젝트 실행에 연동) |
+| `POST /api/emergency/stop` | 전역 E-stop (모터·액추에이터 정지 — **프로세스 kill 아님**) |
+
+> 구 `/api/profiles`·`/api/subsystems`·`/api/tests`·`/api/snapshots`는 **`/api/projects`로 통합·폐기**.
+
+### 7.2 WebSocket `/ws`
+- `welcome` 스냅샷 → 재접속 복원(ws_manager 패턴)
+- `{op:"sub", topic, fields}` 동적 구독 → throttle/downsample → `{topic, stamp, values}` 브로드캐스트
+- **프로젝트 실행 진행**: 상태머신 단계(`RESOLVE`→`SCAN`→`DIFF`→`START`→`PREFLIGHT`→`LIVE`…) push (부속 D §4)
+- `confirm_required`(orphan 목록) / `report_missing`(미충족 리소스) 이벤트 → REST `run/decision`으로 응답
+- 시스템 모니터·diagnostics·프로세스 상태·**난입 감지**·테스트 카운터·E-stop 이벤트 동일 채널 push
+
+---
+
+## 8. 메인 페이지 / UX (부속 C 합성 → 프로젝트 중심 재해석)
+
+### 8.1 셸 (항상 노출)
+- 좌측 **사이드바**(5개 네비, §8.2) + 상단 **전역 상태바**(StatusPulse: zenoh/201/CPU/온도) + **전역 Emergency Stop 바**(상시) + **⌘K 커맨드 팔레트**(보조)
+
+### 8.2 네비 (프로젝트 중심 5개)
+1. **홈** — 프로젝트 목록(카드) + 상태 요약 + 빠른 실행 (구 2안 대시보드 + 6안 그리드)
+2. **프로젝트** — 편집 ↔ 실행 (핵심 화면, §8.3)
+3. **시스템/인프라** — zenoh·202/201 모니터·CAN/네트워크·프로세스(owned-registry)·**난입 감지**
+4. **관리자** — baseline 구성·부팅 게이트 정책 (부속 D §2.5.1)
+5. **데이터 자산** — 실행 이력·CSV/JSON·verdict·카운터
+
+### 8.3 프로젝트 화면 = 편집 ↔ 실행 (★ "2-트랙 모드"의 흡수)
+초기에 논의한 **"운영/가이드 2-트랙"** 은 별도 모드 토글이 아니라 **프로젝트의 두 상태**로 자연 흡수된다:
+- **편집(저작)**: 위젯 팔레트에서 제어/플롯/상태 위젯을 그리드에 배치 + `processes`(필요 런치) 정의 (구 9안 위젯보드)
+- **실행**: ▶ 누르면 수렴→preflight를 **단계 스텝퍼(=가이드)** 로 보여주고(구 8안 위저드), 통과 후 저작한 레이아웃대로 **라이브 렌더(=운영 대시보드)** (구 3안 도킹 워크스페이스)
+
+→ 사용자가 "가이드냐 운영이냐"를 **고를 필요가 없다.** ▶ 실행을 누르면 **가이드(수렴·점검)가 흐르고, 끝나면 운영(라이브)으로 이어진다** — 한 화면에서 연속. 신규자는 스텝퍼를 따라가고, 숙련자는 통과를 지켜본 뒤 바로 조작한다.
+
+### 8.4 부속 C 10안 → v0.3 매핑
+1안 사이드바 = 셸 / 2·6안 = 홈 / **9안 = 편집(레이아웃 빌더)** / **8안 = 실행 스텝퍼** / **3안 = 라이브 렌더·멀티플롯** / 5안 ⌘K = 전역 보조 / 10안 NOC = 시스템 페이지 옵션 뷰.
+
+---
+
+## 9. 역량 매핑 (부속 B §2 요약)
+A 텔레옵 · B 모터 직접제어 · C 모터 텔레메트리 · D 액추에이터 구동 · **E 반복 내구성 러너** · F 센서/스위치 모니터 · G 충전/배터리 · H 카메라/영상 · I 도킹 · J CAN 진단 · K 자산화 · **L 안전(E-stop)**.
+→ 백엔드 레이어 L0~L7 + **테스트 프로젝트(위젯·processes·runner·record)** 로 전부 수용. 부속 B는 *구현 대상이 아니라 이 수용력의 참고자료*(§4.2). 매핑 상세는 부속 B.
+
+---
+
+## 10. 안전 (L1)
+- **전역 Emergency Stop**: UI 어디서나 1클릭. 모든 active goal cancel + cmd_vel 0 + 활성 액추에이터 정지(다중). `emergency.py` 패턴 확장.
+- **불변식: E-stop ≠ 프로세스 kill** (부속 D §4) — E-stop은 모터·액추에이터를 멈출 뿐, baseline·실행 중 프로세스를 종료하지 않는다. 프로세스 종료는 수렴(reconcile)·정지(stop)의 책임.
+- **범퍼 정지 우선**(테스트 30·32): 위젯의 `sensors_state.on_true: estop` 훅으로 선언.
+- **파손 가능성** 테스트(17·19 등)는 프로젝트 메타 `damage_risk: true` → UI 경고.
+- **Clean-Slate 부팅**(부속 D §2.5): 관리되지 않는 ROS 프로세스를 시작 시 정리해, 통제 밖 명령이 도는 상태를 원천 차단.
+
+---
+
+## 11. 로드맵
+| Phase | 범위 | 산출물 |
+|---|---|---|
+| P0 스캐폴딩 | 레포 골격, FastAPI+rclpy(ros_bridge/ws_manager 이식), Next.js14, 디자인 토큰, 전역 상태바+E-stop 바, **boot_gate(Clean-Slate)** | 빈 라우트 + 헬스 + 부팅 게이트 |
+| **P1 인프라 + 텔레옵 프로젝트** | 동적 baseline·zenoh·autostart(SSH)·시스템 모니터·201 토폴로지 / **builtin 텔레옵 프로젝트 실행**(수렴·preflight·라이브) / joint_states·모터온도 plot / controller switch·직접명령 | **즉시 목표 달성 + 프로젝트 실행 엔진 최소 검증** |
+| P2 프로젝트 저작 UI | 레이아웃 빌더(그리드·위젯 팔레트), 위젯 **동적폼**(introspect), 프로젝트 CRUD·복제 | 사용자가 프로젝트 저작 |
+| P3 수렴·preflight 완성 | reconciler(orphan 승인 종료)·preflight(존재·발행)·report_missing 보강 루프·owned-registry/난입 감지 | 완전한 desired-state 수렴 |
+| P4 러너 + 자산화 | runner(cycle/sequence 반복)·record(CSV/JSON·counters·**수동 verdict**)·데이터 자산 페이지 | 반복 내구성·결과 박제 |
+| P5 전장부 + 진단 + 카메라 | BMS/Elyx 위젯·diagnostics·CAN 진단·카운터 / MJPEG/WebRTC·fps·USB허브 | 전장부·카메라 위젯 |
+
+---
+
+## 12. 미해결 / 검증 항목 (구현 전·중 확인)
+1. **라이브 인터페이스 실측** — 로봇 기동 후 도어/컨베이어/암/카메라 등의 실제 토픽·타입·서비스·액션 캡처(현재 OFF, 위젯 `name` 플레이스홀더).
+2. **201 시스템 stats 경로** — ROS2 토픽 발행 여부 / 없으면 SSH psutil fallback.
+3. **컨트롤러 직접 명령 인터페이스** — swerve/도어/옆문 토크[중력보상]·Hightorque 등 실제 명령 채널.
+4. **diagnostics 출처** — 모터 온도/전류/토크는 `/diagnostics`(hardware_id `can2:<id>`)로 **실측 확인**(§2.4); 충전/기타 diagnostics 출처는 미확인.
+5. **카메라 파이프라인** — 압축/대역폭/USB허브 제어 방식(역량 H).
+6. **SSH 무인 인증** — 202→201 키 배치.
+7. **zenoh 단일성** — 202 라우터 1개, 201 클라이언트 모드 검증.
+8. **202 의존성 설치** — fastapi/uvicorn/asyncssh pip (06_environment_setup류 문서화).
+9. **부속 D 잔여**(§8) — 난입(foreign) 판별 패턴(launch 자식 프로세스 트리 추적), healthcheck↔preflight 폴러 통합, 발행 위젯 type 해석. *합/불 판정식은 범위 밖으로 결정됨(수동 verdict)*.
+
+
+
+
+
 
