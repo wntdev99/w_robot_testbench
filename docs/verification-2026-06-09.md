@@ -41,6 +41,19 @@
 - **기동**: `setsid`로 새 프로세스 그룹 생성(launch 자식 트리 일괄 종료 가능). 원격은 SSH+setsid로 세션 분리(SSH 끊겨도 지속 → 재접속 종료).
 - **종료**: 반드시 **PID/PGID 기반**(`kill -TERM -<PGID>`). **`pkill -f` 등 cmdline 패턴 매칭 종료 금지** — 자기 세션/무관 프로세스 오살 위험 실측(T3c에서 자기 SSH 셸 종료됨). owned-registry(PID 추적, 부속 D §5)가 옳음을 보강.
 
+## Clean-Slate + baseline 기동 end-to-end (백엔드 mock 실증)
+실제 가동 중인 런치(robot/navigation@202, control@201)를 대상으로 "서버 기동" 시나리오를 그대로 실행. 스크립트: [`scripts/bootgate_test_202.sh`](../scripts/bootgate_test_202.sh) + `bootgate_test_201.sh`.
+
+| Phase | 결과 |
+|---|---|
+| 0. 스냅샷 | 202: 19 ROS proc / 201: 5 |
+| A. Clean-Slate | launch 부모 INT → 잔존 TERM(PID 기반) → 202·201 **전부 0** |
+| B. baseline 순차 기동 | `zenoh OK` → `robot_urdf OK`(/robot_description) → `controller OK`(controller_manager). healthcheck 전부 통과 |
+| C. 검증 | **baseline 노드만 복구**(robot_state_publisher·rplidar·imu·ekf + 201 controller_manager·swerve·joint_state·steering·zltech). navigation 스택은 제거됨(baseline 아님) |
+
+→ **"서버 기동 = 기존 ROS 전부 종료 → baseline 순차 기동"**(부속 D §2.5 Clean-Slate 게이트)이 실로봇에서 작동 실증.
+→ 재기동은 `setsid`(세션 분리)로 띄워 SSH 종료 후에도 지속. 201 노드는 명시 `ZENOH_CONFIG_OVERRIDE`로 202 라우터에 연결(비대화형 SSH는 .bashrc 미로드).
+
 ## 후속 (런타임/구현 시점에 발견)
 - 충전/기타 diagnostics 출처, 카메라 파이프라인 — 미확인(해당 서브시스템 프로젝트 저작 시 introspect).
 - 난입(foreign) 프로세스 트리 추적 패턴: V3 cmdline 패턴(`/opt/ros/`·`ros2_ws/install`·`rmw_zenohd`·`ros2 launch`) 확인됨 → boot_gate 구현 시 활용.
