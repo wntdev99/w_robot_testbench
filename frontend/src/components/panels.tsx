@@ -21,6 +21,9 @@ export type Panel = {
   msgType?: string;
   chosen?: string[];
   sysCat?: string;       // 시스템 소스 선택 카테고리(cpu/mem/temp/net/conn)
+  // diagnostics
+  diagAxis?: "device" | "metric";  // 기기별 / 항목별
+  diagCat?: string;                // 선택된 카테고리(hardware_id 또는 metric key)
   // command
   cmdTopic?: string;
 };
@@ -285,15 +288,21 @@ export function ControllersWidget({ panel, onRemove, canRemove }: { panel: Panel
   );
 }
 
-// ── Diagnostics 위젯 (/diagnostics 데이터 소스, 표/그래프 선택) ──
+// ── Diagnostics 위젯 (/diagnostics, 기기별/항목별 카테고리 + 표/그래프) ──
+const HID_LABEL: Record<string, string> = {
+  "can2:11": "조향 FL", "can2:12": "조향 FR", "can2:13": "조향 RL", "can2:14": "조향 RR",
+};
+const hidLabel = (h: string) => (HID_LABEL[h] ? `${HID_LABEL[h]} (${h})` : h);
+
 export function DiagnosticsWidget({ panel, onChange, onRemove, canRemove }: {
   panel: Panel; onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
 }) {
   const diag = useTb((s) => s.diagnostics);
   const view = panel.view ?? "table";
+  const axis = panel.diagAxis ?? "metric";
   const chosen = useMemo(() => new Set(panel.chosen ?? []), [panel.chosen]);
 
-  // /diagnostics 의 수치 항목 목록: "<hardware_id> · <key>"
+  // 수치 진단 필드: path "<hid> · <key>"
   const fields = useMemo(() => {
     const out: { path: string; hid: string; key: string }[] = [];
     for (const [hid, f] of Object.entries(diag || {})) {
@@ -305,41 +314,79 @@ export function DiagnosticsWidget({ panel, onChange, onRemove, canRemove }: {
     return out;
   }, [diag]);
 
-  // 기본 선택: 온도(temperature_C) 류, 없으면 상위 6개
-  useEffect(() => {
-    if (!(panel.chosen?.length) && fields.length) {
-      const temps = fields.filter((f) => f.key.toLowerCase().includes("temp")).map((f) => f.path);
-      onChange({ chosen: temps.length ? temps : fields.slice(0, 6).map((f) => f.path) });
+  // 카테고리(축에 따라): 항목별=metric key, 기기별=hardware_id
+  const cats = useMemo(() => {
+    const m = new Map<string, { key: string; label: string; paths: string[] }>();
+    for (const f of fields) {
+      const k = axis === "metric" ? f.key : f.hid;
+      const label = axis === "metric" ? f.key : hidLabel(f.hid);
+      if (!m.has(k)) m.set(k, { key: k, label, paths: [] });
+      m.get(k)!.paths.push(f.path);
     }
-  }, [fields.length]); // eslint-disable-line
+    return [...m.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }, [fields, axis]);
 
+  // 기본 카테고리 선택 (항목별이면 temperature 류 우선)
+  useEffect(() => {
+    if (!cats.length) return;
+    if (!panel.diagCat || !cats.find((c) => c.key === panel.diagCat)) {
+      const def = (axis === "metric" && cats.find((c) => c.key.toLowerCase().includes("temp"))) || cats[0];
+      onChange({ diagCat: def.key, chosen: def.paths });
+    }
+  }, [cats, axis]); // eslint-disable-line
+
+  const pickCat = (key: string) => {
+    const c = cats.find((x) => x.key === key);
+    onChange({ diagCat: key, chosen: c ? c.paths : [] });
+  };
+  const setAxis = (a: "device" | "metric") => onChange({ diagAxis: a, diagCat: undefined, chosen: [] });
   const toggle = (p: string) => { const n = new Set(chosen); n.has(p) ? n.delete(p) : n.add(p); onChange({ chosen: [...n] }); };
 
-  const selected = fields.filter((f) => chosen.has(f.path));
-  const labels = selected.map((f) => f.path);
+  const chipFields = fields.filter((f) => (axis === "metric" ? f.key : f.hid) === panel.diagCat);
+  const chipLabel = (f: { hid: string; key: string }) => (axis === "metric" ? hidLabel(f.hid) : f.key);
+  const selected = chipFields.filter((f) => chosen.has(f.path));
+  const labels = selected.map(chipLabel);
 
-  // 그래프용 시계열 샘플: diagnostics 갱신 때마다 적재
   const [sample, setSample] = useState<PlotSample | null>(null);
   useEffect(() => {
     const vals = selected.map((f) => { const v = diag[f.hid]?.[f.key]; return v != null && !isNaN(Number(v)) ? Number(v) : null; });
     setSample({ t: Date.now() / 1000, vals });
-  }, [diag, panel.chosen]); // eslint-disable-line
+  }, [diag, panel.chosen, panel.diagCat, axis]); // eslint-disable-line
 
   return (
     <Shell title="Diagnostics" onRemove={onRemove} canRemove={canRemove}
-      head={<ViewToggle view={view} onChange={(v) => onChange({ view: v })} />}>
+      head={
+        <div className="flex items-center gap-1.5">
+          <ViewToggle view={view} onChange={(v) => onChange({ view: v })} />
+          <div className="flex rounded-lg bg-surface-muted p-0.5 text-xs">
+            {(["metric", "device"] as const).map((a) => (
+              <button key={a} onClick={() => setAxis(a)}
+                className={cn("rounded-md px-2 py-0.5", axis === a ? "bg-surface text-ink shadow-card" : "text-ink-faint")}>
+                {a === "metric" ? "항목별" : "기기별"}
+              </button>
+            ))}
+          </div>
+        </div>
+      }>
       {fields.length === 0 ? (
         <div className="py-6 text-center text-sm text-ink-faint">/diagnostics 데이터 없음 (드라이버 기동 필요)</div>
       ) : (
         <>
-          <div className="mb-3 flex flex-wrap gap-1.5 max-h-24 overflow-auto">
-            {fields.map((f) => (
-              <button key={f.path} onClick={() => toggle(f.path)}
-                className={cn("rounded-md border px-2 py-0.5 text-xs", chosen.has(f.path) ? "border-brand-500 bg-brand-50 text-brand-700" : "border-surface-line text-ink-soft")}>
-                {f.path}
-              </button>
-            ))}
-          </div>
+          <select value={panel.diagCat ?? ""} onChange={(e) => pickCat(e.target.value)}
+            className="mb-2 w-full rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs">
+            <option value="">{axis === "metric" ? "항목 선택…" : "기기 선택…"}</option>
+            {cats.map((c) => <option key={c.key} value={c.key}>{c.label} ({c.paths.length})</option>)}
+          </select>
+          {chipFields.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {chipFields.map((f) => (
+                <button key={f.path} onClick={() => toggle(f.path)}
+                  className={cn("rounded-md border px-2 py-0.5 text-xs", chosen.has(f.path) ? "border-brand-500 bg-brand-50 text-brand-700" : "border-surface-line text-ink-soft")}>
+                  {chipLabel(f)}
+                </button>
+              ))}
+            </div>
+          )}
           {labels.length > 0
             ? <DataView view={view} labels={labels} latest={sample} windowSec={120} height={200} />
             : <div className="py-6 text-center text-sm text-ink-faint">항목을 선택하세요</div>}
