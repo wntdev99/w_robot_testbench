@@ -124,6 +124,7 @@ testbench 서버는 **이 서버가 모든 ROS 프로세스의 유일한 기동 
 - 부팅 후 baseline이 비어 있으면 **초기 세팅 마법사**로 구성을 유도(zenoh/robot_urdf/controller 중 무엇을 persistent로 둘지, 201 SSH 사용 여부).
 - **세팅을 건너뛰면 baseline = 빈 집합**으로 인지한다(202 단독 테스트 허용).
 - 이후 **관리자 페이지**에서 baseline을 언제든 수정. 변경은 수렴 정책에 즉시 반영(실행 중 프로젝트가 있으면 경고).
+- **zenoh는 reconcile 예외(인프라 전제)** — 2026-06-09 실증: 백엔드 bridge(rclpy)가 zenoh 라우터에 의존하므로, 백엔드 실행 중 zenoh를 죽이면 bridge가 재연결 못 해 introspect/healthcheck가 먹통이 된다. 따라서 Clean-Slate/baseline reconcile은 **zenoh를 죽이지 않고 ensure(없으면 띄움, 있으면 유지)** 만 한다. zenoh는 백엔드 기동의 선결 전제(systemd 의존 or 기동 스크립트가 먼저 보장).
 
 ### 2.6 ROS 프로세스 식별 기준
 "관리 대상 ROS 프로세스"는 아래로 판별한다. **게이트(부팅 1회) + 런타임 난입 감시(주기)** 두 곳에서만 사용한다.

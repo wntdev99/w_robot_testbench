@@ -28,6 +28,7 @@
 19. **P0 스캐폴딩 완료** (`fa50f9c`) — 백엔드(FastAPI+rclpy 골격, bt_gui 패턴 계승, py_compile ✅) + 프론트(Next.js14+TS+Tailwind 셸, build ✅). boot_gate/api/ws_manager/config + 셸(Sidebar·StatusPulse·EmergencyStopBar)·디자인토큰·빈 라우트 5
 20. **의존성 자동화(rosdep)** (`98b0255`) — bt_gui 맹목계승 대신 리서치 후 rosdep 채택. `package.xml`=SSOT, ament_python(setup.py). 새 머신=`rosdep install` 한 줄
 21. **P0 백엔드 202 실증** (`0d2f629`) — rosdep+apt 설치 ✅ → `colcon build` ✅ → `ros2 run w_robot_testbench testbench` 기동 ✅ → API 3종 응답, `baseline.yaml` 3개 로드, **PREBOOT_SCAN이 24개 ROS(202 풀스택+201 control) 정확 감지**. 버그 수정: setup.cfg(ros2 run 인식)·config 경로(ament share). fastapi 0.101 호환 OK
+22. **P1 인프라 구현+202 검증** (`a482ff1`) — procman(spawn/kill/owned)·baseline 오케스트레이터·`/api/baseline`·`/api/system/controller`. 검증: idempotent skip ✅, 201 stats(loadavg/temp SSH) ✅, resolve kill ✅, baseline up spawn 순차 ✅. **발견: zenoh를 reconcile로 죽이면 백엔드 bridge 재연결 안 됨→healthcheck 먹통** → zenoh=인프라 전제(reconcile 예외)로 보정 필요(부속 D §2.5.1 기록)
 
 ---
 
@@ -50,7 +51,8 @@
 - [ ] **P5 전장부+진단+카메라** — BMS/Elyx 위젯·diagnostics·CAN 진단 / MJPEG/WebRTC·fps·USB허브
 
 ### 설계 잔여 (부속 D §8)
-- [ ] **boot_gate self/owned 제외** — PREBOOT_SCAN이 자기 백엔드(`ros2 run testbench`)+스캔 셸을 포함(202 실증에서 확인). P3 owned_registry(자기 기동 PID 추적)로 해결
+- [ ] **zenoh reconcile 예외화** — boot_gate resolve / baseline down이 zenoh(rmw_zenohd) 보존하도록 (백엔드 bridge 의존, 202 실증). zenoh=인프라 전제로 ensure만
+- [x] ~~boot_gate self/owned 제외~~ ✅ P1에서 owned_registry + getpid/getppid 제외 구현(`2bec20b`)
 - [ ] 난입(foreign) 판별 패턴 — launch 자식 프로세스 트리 추적
 - [ ] healthcheck ↔ preflight 폴러 통합
 - [ ] 발행 위젯 메시지 type 해석(introspection) 구현 방식
