@@ -4,7 +4,7 @@ import { Card, CardTitle } from "@/components/Card";
 import { cn } from "@/lib/cn";
 
 export default function SystemPage() {
-  const { system } = useTb((s) => ({ system: s.system }));
+  const system = useTb((s) => s.system);
   const temps = (system?.temperatures ?? {}) as Record<string, number>;
   const net = system?.net;
 

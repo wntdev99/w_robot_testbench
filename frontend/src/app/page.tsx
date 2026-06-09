@@ -14,7 +14,8 @@ const MOTORS = [
 ];
 
 export default function Dashboard() {
-  const { system, diagnostics } = useTb((s) => ({ system: s.system, diagnostics: s.diagnostics }));
+  const system = useTb((s) => s.system);
+  const diagnostics = useTb((s) => s.diagnostics);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [temp, setTemp] = useState<PlotSample | null>(null);
 

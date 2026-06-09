@@ -43,7 +43,10 @@ async def _monitor_loop(app: FastAPI) -> None:
     ctx: Context = app.state.ctx
     while True:
         try:
-            stats = await local_stats.snapshot(controller_reachable=ctx.controller_reachable)
+            stats = await local_stats.snapshot(
+                controller_reachable=ctx.controller_reachable,
+                controller_host=ctx.cfg.controller.host if ctx.cfg.controller else None,
+            )
             stats["zenoh"] = ctx.orch.zenoh.status()
             await ctx.ws.broadcast("system", stats, snapshot=True)
         except Exception:  # noqa: BLE001

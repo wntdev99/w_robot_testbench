@@ -13,9 +13,10 @@ function Dot({ ok, label }: { ok: boolean; label: string }) {
 }
 
 export function StatusBar() {
-  const { connected, system, zenoh } = useTb((s) => ({
-    connected: s.connected, system: s.system, zenoh: s.zenoh,
-  }));
+  // 개별 셀렉터(원시값/안정참조) — 객체 리터럴 반환 시 React18 무한루프 유발하므로 분리
+  const connected = useTb((s) => s.connected);
+  const system = useTb((s) => s.system);
+  const zenoh = useTb((s) => s.zenoh);
   const z = zenoh ?? system?.zenoh;
   const ctrl = system?.controller_reachable;
   const cpu = system?.cpu_percent;

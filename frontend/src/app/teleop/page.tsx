@@ -8,9 +8,9 @@ import { cn } from "@/lib/cn";
 const CMD_TOPIC = "/swerve_controller/cmd_vel";
 
 export default function TeleopPage() {
-  const { topicData, subscribe, unsubscribe } = useTb((s) => ({
-    topicData: s.topicData, subscribe: s.subscribe, unsubscribe: s.unsubscribe,
-  }));
+  const topicData = useTb((s) => s.topicData);
+  const subscribe = useTb((s) => s.subscribe);
+  const unsubscribe = useTb((s) => s.unsubscribe);
   const [profiles, setProfiles] = useState<any[]>([]);
   const teleop = profiles.find((p) => p.id === "teleop");
 

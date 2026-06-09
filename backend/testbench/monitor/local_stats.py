@@ -5,9 +5,12 @@ psutil + /sys/class/thermal. DESIGN.md §4.1 L0 모니터.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 
 import psutil
+
+_RTT_RE = re.compile(r"time[=<]([\d.]+)\s*ms")
 
 _last_net: tuple[float, int, int] | None = None
 
@@ -48,24 +51,36 @@ def net_rate() -> dict:
     return rate
 
 
-async def internet_ok(host: str = "8.8.8.8", timeout: float = 2.0) -> bool:
+async def ping_rtt(host: str, timeout: float = 2.0) -> tuple[bool, float | None]:
+    """ping 1회 → (성공여부, RTT[ms] | None)."""
     try:
         proc = await asyncio.create_subprocess_exec(
             "ping", "-c", "1", "-W", str(int(timeout)), host,
-            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
         )
-        return (await proc.wait()) == 0
+        out, _ = await proc.communicate()
+        if proc.returncode != 0:
+            return False, None
+        m = _RTT_RE.search(out.decode(errors="ignore"))
+        return True, (float(m.group(1)) if m else None)
     except Exception:  # noqa: BLE001
-        return False
+        return False, None
 
 
-async def snapshot(controller_reachable: bool | None = None) -> dict:
+async def snapshot(controller_reachable: bool | None = None,
+                   controller_host: str | None = None) -> dict:
+    inet_ok, inet_ms = await ping_rtt("8.8.8.8")
+    latency: dict[str, float | None] = {"internet_ms": inet_ms}
+    if controller_host:
+        _, ctrl_ms = await ping_rtt(controller_host)
+        latency["controller_ms"] = ctrl_ms
     return {
         "cpu_percent": cpu_percent(),
         "mem": mem(),
         "temperatures": temperatures(),
-        "net": net_rate(),
-        "internet": await internet_ok(),
+        "net": net_rate(),                 # 처리량(bytes/s)
+        "latency": latency,                # 지연(ms) — internet_ms / controller_ms
+        "internet": inet_ok,
         "controller_reachable": controller_reachable,
         "ts": time.time(),
     }
