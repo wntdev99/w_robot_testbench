@@ -21,6 +21,15 @@ def _repo_root() -> Path:
 
 
 def _config_dir() -> Path:
+    # 설치 환경: ament share/<pkg>/config 우선. 없으면 소스 레포 config (개발).
+    try:
+        from ament_index_python.packages import get_package_share_directory
+
+        share = Path(get_package_share_directory("w_robot_testbench")) / "config"
+        if share.exists():
+            return share
+    except Exception:
+        pass
     return _repo_root() / "config"
 
 
