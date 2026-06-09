@@ -307,15 +307,17 @@ A 텔레옵 · B 모터 직접제어 · C 모터 텔레메트리 · D 액추에�
 ---
 
 ## 12. 미해결 / 검증 항목 (구현 전·중 확인)
-1. **라이브 인터페이스 실측** — 로봇 기동 후 도어/컨베이어/암/카메라 등의 실제 토픽·타입·서비스·액션 캡처(현재 OFF, 위젯 `name` 플레이스홀더).
+> **2026-06-09 1차 검증 완료** — 아키텍처 4대 구조 가정 + 보조 2개 전부 합격. 상세: [`docs/verification-2026-06-09.md`](docs/verification-2026-06-09.md).
+
+1. **라이브 인터페이스 실측** — 로봇 기동 후 도어/컨베이어/암/카메라 등의 실제 토픽·타입·서비스·액션 캡처(현재 미확인, 위젯 `name` 플레이스홀더). *원칙: 카탈로그는 박제하지 않고 런타임 동적 발견.*
 2. **201 시스템 stats 경로** — ROS2 토픽 발행 여부 / 없으면 SSH psutil fallback.
-3. **컨트롤러 직접 명령 인터페이스** — swerve/도어/옆문 토크[중력보상]·Hightorque 등 실제 명령 채널.
-4. **diagnostics 출처** — 모터 온도/전류/토크는 `/diagnostics`(hardware_id `can2:<id>`)로 **실측 확인**(§2.4); 충전/기타 diagnostics 출처는 미확인.
+3. **컨트롤러 직접 명령 인터페이스** — swerve/도어/옆문 토크[중력보상]·Hightorque 등 실제 명령 채널. (cmd_vel = `geometry_msgs/Twist` **확정**, §2.4)
+4. ✅ **diagnostics 출처(모터)** — `/diagnostics`(DiagnosticArray, hardware_id `can2:<id>`, key `temperature_C`/`current_A`/`effort_Nm`…) **검증**. → plot에 diagnostics 파서 필요. (충전/기타 출처는 미확인)
 5. **카메라 파이프라인** — 압축/대역폭/USB허브 제어 방식(역량 H).
-6. **SSH 무인 인증** — 202→201 키 배치.
-7. **zenoh 단일성** — 202 라우터 1개, 201 클라이언트 모드 검증.
+6. ✅ **SSH 무인 인증** — 202→201 키 배치 **완료**(2026-06-09). 제품 서버는 admin "201 연결 설정" 부트스트랩(비번 1회→copy-id→폐기, 영구저장 금지).
+7. ✅ **zenoh 단일성** — 202 라우터 1개, 201 클라이언트(`connect tcp/202:7447`) **검증**. 202에서 201 노드 가시.
 8. **202 의존성 설치** — fastapi/uvicorn/asyncssh pip (06_environment_setup류 문서화).
-9. **부속 D 잔여**(§8) — 난입(foreign) 판별 패턴(launch 자식 프로세스 트리 추적), healthcheck↔preflight 폴러 통합, 발행 위젯 type 해석. *합/불 판정식은 범위 밖으로 결정됨(수동 verdict)*.
+9. **부속 D 잔여**(§8) — 난입(foreign) 판별 패턴(launch 자식 프로세스 트리 추적 — 검증3에서 cmdline 패턴 확인), healthcheck↔preflight 폴러 통합, 발행 위젯 type 해석(introspection 검증 ✅). *합/불 판정식은 범위 밖으로 결정됨(수동 verdict)*.
 
 
 

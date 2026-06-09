@@ -20,17 +20,20 @@
 11. **2-트랙 모드 토글 폐기** — 편집↔실행 상태로 흡수(§8)
 12. 메모리 동기화(test-project-paradigm / hardware-test-plan-driver 등)
 13. 커밋 완료 (`e388a2f` DESIGN v0.3, 부속 D는 `05df77b`에 포함 검증)
+14. task.md 작성·커밋 (`d631ea4`)
+15. **실로봇 아키텍처 4대 가정 검증**(2026-06-09) — zenoh·SSH무인·프로세스식별·introspection + cmd_vel=Twist·diagnostics 전부 ✅. 202→201 SSH 키 배포. 기록: `docs/verification-2026-06-09.md` + `scripts/verify_assumptions.sh`
 
 ---
 
 ## ⬜ 앞으로 진행할 작업
 
 ### 선행 (구현 전 확인 · DESIGN §12)
-- [ ] **로봇 기동 상태에서 라이브 인터페이스 실측** — 도어/컨베이어/암/카메라 등 실제 토픽·타입·서비스·액션 (현재 OFF, 위젯 name 플레이스홀더)
+- [x] ~~zenoh 단일성 검증~~ ✅ 202 라우터 1개 + 201 클라이언트(connect 202:7447), 202에서 201 노드 가시
+- [x] ~~202→201 SSH 무인 인증 키 배치~~ ✅ (2026-06-09 키 배포). 단 제품 서버는 admin 부트스트랩으로 일반화 필요
+- [x] ~~타입 introspection / cmd_vel·diagnostics 확인~~ ✅ cmd_vel=Twist, /diagnostics(can2:N key-value)
 - [ ] 202에 `fastapi`/`uvicorn`/`asyncssh` pip 설치
-- [ ] 202→201 SSH 무인 인증 키 배치
-- [ ] zenoh 단일성(202 라우터 1개, 201 클라이언트) 검증
 - [ ] 201 시스템 stats 경로(ROS2 토픽 / SSH psutil fallback) 확인
+- [ ] (런타임 발견 원칙) 도어/컨베이어/암/카메라·충전 인터페이스 — 박제 X, 해당 프로젝트 저작 시 introspect
 
 ### 구현 로드맵 (DESIGN §11)
 - [ ] **P0 스캐폴딩** — 레포 골격, FastAPI+rclpy(ros_bridge/ws_manager 이식), Next.js14, 디자인토큰, 전역 상태바+E-stop, **boot_gate**
