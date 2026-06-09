@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from .config import Config
 from .procman.orchestrator import Orchestrator
+from .recorder import Recorder
 from .ros_bridge import RosBridge
 from .ros.stream import StreamHub
 from .ws_manager import WsManager
@@ -17,4 +18,5 @@ class Context:
     ws: WsManager
     orch: Orchestrator
     stream: StreamHub
+    recorder: Recorder
     controller_reachable: bool | None = None

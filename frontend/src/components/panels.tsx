@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, recordingDownloadUrl } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { Card } from "@/components/Card";
 import { PlotPanel, PlotSample } from "@/components/PlotPanel";
 import { cn } from "@/lib/cn";
 
-export type PanelType = "plot" | "controllers" | "diagnostics" | "command" | "launch" | "teleop";
+export type PanelType = "plot" | "controllers" | "diagnostics" | "command" | "launch" | "teleop" | "recorder";
 export type PlotSource = "topic" | "system";
 export type ViewMode = "graph" | "table";
 export type Panel = {
@@ -483,6 +483,102 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
         ))}
       </div>
       {msg && <div className="mt-2 break-all text-xs text-ink-faint">{msg}</div>}
+    </Shell>
+  );
+}
+
+// ── Recorder 위젯 (백엔드 풀레이트 녹화 → Wide CSV) ──
+export function RecorderWidget({ topics, onRemove, canRemove }: {
+  panel: Panel; topics: Topic[]; onRemove: () => void; canRemove: boolean;
+}) {
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [q, setQ] = useState("");
+  const [recDiag, setRecDiag] = useState(true);
+  const [recSystem, setRecSystem] = useState(false);
+  const [name, setName] = useState("");
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ rows: number; elapsed: number } | null>(null);
+  const [recordings, setRecordings] = useState<{ file: string; rows: number | null }[]>([]);
+  const [last, setLast] = useState<{ file?: string; rows?: number; columns?: number } | null>(null);
+
+  const loadRecordings = () => api.recordings().then(setRecordings).catch(() => {});
+  useEffect(() => { loadRecordings(); }, []);
+  useEffect(() => {
+    if (!activeId) return;
+    const id = setInterval(async () => {
+      const a = await api.recActive().catch(() => []);
+      const s = a.find((x) => x.id === activeId);
+      if (s) setStatus({ rows: s.rows, elapsed: s.elapsed_s });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [activeId]);
+
+  const start = async () => {
+    const tList = topics.filter((t) => sel.has(t.topic)).map((t) => ({ topic: t.topic, msgType: t.types[0] }));
+    if (tList.length === 0 && !recDiag && !recSystem) return;
+    const r = await api.recStart({ name, topics: tList, diagnostics: recDiag, system: recSystem }).catch(() => null);
+    if (r) { setActiveId(r.id); setLast(null); setStatus({ rows: 0, elapsed: 0 }); }
+  };
+  const stop = async () => {
+    if (!activeId) return;
+    const r = await api.recStop(activeId).catch(() => null);
+    setActiveId(null); setStatus(null);
+    if (r?.file) setLast(r);
+    loadRecordings();
+  };
+  const toggle = (t: string) => { const n = new Set(sel); n.has(t) ? n.delete(t) : n.add(t); setSel(n); };
+  const filtered = topics.filter((t) => t.topic.toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <Shell title="Recorder" onRemove={onRemove} canRemove={canRemove}>
+      {activeId ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 rounded-xl bg-danger/5 px-3 py-2">
+            <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-danger" />
+            <span className="text-sm font-semibold text-danger">녹화 중</span>
+            <span className="ml-auto font-mono text-xs text-ink-soft">{status?.rows ?? 0}행 · {Math.round(status?.elapsed ?? 0)}s</span>
+          </div>
+          <button onClick={stop} className="w-full rounded-xl bg-danger px-3 py-2 text-sm font-semibold text-white active:scale-[.98]">■ 정지 & CSV 저장</button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="녹화 이름 (선택)"
+            className="w-full rounded-lg border border-surface-line px-2 py-1 text-sm" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`토픽 검색 (선택 ${sel.size})`}
+            className="w-full rounded-lg border border-surface-line px-2 py-1 text-xs" />
+          <div className="max-h-32 overflow-auto rounded-lg border border-surface-line divide-y divide-surface-line">
+            {filtered.map((t) => (
+              <label key={t.topic} className="flex items-center gap-2 px-2 py-1 text-xs">
+                <input type="checkbox" checked={sel.has(t.topic)} onChange={() => toggle(t.topic)} />
+                <span className="truncate">{t.topic}</span>
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-4 text-xs">
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={recDiag} onChange={(e) => setRecDiag(e.target.checked)} /> diagnostics</label>
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={recSystem} onChange={(e) => setRecSystem(e.target.checked)} /> 시스템</label>
+          </div>
+          <button onClick={start} className="w-full rounded-xl bg-brand-500 px-3 py-2 text-sm font-semibold text-white active:scale-[.98]">● 녹화 시작</button>
+        </div>
+      )}
+
+      {last?.file && (
+        <div className="mt-3 rounded-lg bg-ok/5 px-3 py-2 text-xs">
+          저장됨: {last.rows}행 · {last.columns}열 — <a className="font-medium text-brand-700 underline" href={recordingDownloadUrl(last.file)}>다운로드</a>
+        </div>
+      )}
+
+      <div className="mt-3 text-[11px] font-medium text-ink-faint">저장된 녹화</div>
+      <div className="max-h-28 space-y-1 overflow-auto">
+        {recordings.length === 0 && <div className="text-xs text-ink-faint">없음</div>}
+        {recordings.map((r) => (
+          <div key={r.file} className="flex items-center gap-2 text-xs">
+            <span className="min-w-0 flex-1 truncate" title={r.file}>{r.file}</span>
+            {r.rows != null && <span className="shrink-0 text-ink-faint">{r.rows}행</span>}
+            <a className="shrink-0 text-brand-700 underline" href={recordingDownloadUrl(r.file)}>CSV</a>
+          </div>
+        ))}
+      </div>
     </Shell>
   );
 }

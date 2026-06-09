@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench, Rocket, Gamepad2, Save } from "lucide-react";
+import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench, Rocket, Gamepad2, Save, Circle } from "lucide-react";
 import { api } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { cn } from "@/lib/cn";
 import {
   Panel, PanelType, Topic,
-  PlotWidget, ControllersWidget, DiagnosticsWidget, CommandWidget, LaunchWidget, TeleopWidget,
+  PlotWidget, ControllersWidget, DiagnosticsWidget, CommandWidget, LaunchWidget, TeleopWidget, RecorderWidget,
 } from "@/components/panels";
 
 let _pid = 0;
@@ -50,6 +50,7 @@ function RunningBar() {
 
 const ADD_MENU: { type: PanelType; label: string; icon: any }[] = [
   { type: "plot", label: "플롯", icon: LineChart },
+  { type: "recorder", label: "녹화", icon: Circle },
   { type: "teleop", label: "텔레옵", icon: Gamepad2 },
   { type: "command", label: "명령", icon: Wrench },
   { type: "launch", label: "런치", icon: Rocket },
@@ -124,6 +125,11 @@ export default function WorkspacePage() {
     await api.deleteSnapshot(name).catch(() => {});
     loadSnaps();
   };
+  // 대시보드에서 ?snapshot=이름 으로 진입 시 자동 복원
+  useEffect(() => {
+    const snap = new URLSearchParams(window.location.search).get("snapshot");
+    if (snap) loadSnap(snap);
+  }, []); // eslint-disable-line
 
   const visible = topics.filter((t) => (onlyPlottable ? t.plottable : true));
   const canRemove = panels.length > 1;
@@ -190,6 +196,7 @@ export default function WorkspacePage() {
           if (p.type === "command")
             return <CommandWidget key={p.id} {...common} topics={topics} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} />;
           if (p.type === "launch") return <LaunchWidget key={p.id} {...common} />;
+          if (p.type === "recorder") return <RecorderWidget key={p.id} {...common} topics={visible} />;
           if (p.type === "teleop") return <TeleopWidget key={p.id} {...common} onChange={(patch) => update(p.id, patch)} />;
           if (p.type === "controllers") return <ControllersWidget key={p.id} {...common} />;
           return <DiagnosticsWidget key={p.id} {...common} onChange={(patch) => update(p.id, patch)} />;

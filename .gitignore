@@ -12,4 +12,5 @@ frontend/next-env.d.ts
 
 # 런타임 산출물
 data/
+recordings/
 *.log

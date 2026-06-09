@@ -1,5 +1,8 @@
 import { apiBase } from "./config";
 
+export const recordingDownloadUrl = (file: string) =>
+  `${apiBase()}/api/recordings/${encodeURIComponent(file)}/download`;
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(apiBase() + path, {
     headers: { "Content-Type": "application/json" },
@@ -28,6 +31,12 @@ export const api = {
     req<any>("/api/snapshots", { method: "POST", body: JSON.stringify({ name, data }) }),
   loadSnapshot: (name: string) => req<{ name: string; data: any }>(`/api/snapshots/${encodeURIComponent(name)}`),
   deleteSnapshot: (name: string) => req<any>(`/api/snapshots/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  recStart: (body: { name: string; topics: { topic: string; msgType?: string }[]; diagnostics: boolean; system: boolean }) =>
+    req<{ id: string }>("/api/recordings/start", { method: "POST", body: JSON.stringify(body) }),
+  recStop: (id: string) => req<{ ok: boolean; file?: string; rows?: number; columns?: number }>(
+    "/api/recordings/stop", { method: "POST", body: JSON.stringify({ id }) }),
+  recActive: () => req<{ id: string; name: string; active: boolean; rows: number; elapsed_s: number }[]>("/api/recordings/active"),
+  recordings: () => req<{ file: string; size: number; rows: number | null; name: string | null }[]>("/api/recordings"),
   topics: (includeHidden = false) =>
     req<{ topic: string; types: string[]; publishers: number; subscribers: number; plottable: boolean }[]>(
       `/api/topics?include_hidden=${includeHidden}`,

@@ -23,7 +23,7 @@ class StreamHub:
         self._refcount: dict[str, int] = {}
         self._last_emit: dict[str, float] = {}
         # diagnostics 중계 연결
-        self._ros.set_diagnostics_callback(self._on_diag)
+        self._ros.set_diagnostics_callback(self._on_diag, sid="stream")
         self._diag_last = 0.0
 
     def subscribe(self, topic: str, type_str: str | None = None) -> bool:
@@ -38,7 +38,7 @@ class StreamHub:
             self._last_emit[_topic] = now
             self._ws.broadcast_threadsafe("topic_data", {"topic": _topic, "values": data})
 
-        ok = self._ros.subscribe(topic, type_str, _cb)
+        ok = self._ros.subscribe(topic, type_str, _cb, sid="stream")
         if not ok:
             self._refcount.pop(topic, None)
         return ok
@@ -47,7 +47,7 @@ class StreamHub:
         n = self._refcount.get(topic, 0) - 1
         if n <= 0:
             self._refcount.pop(topic, None)
-            self._ros.unsubscribe(topic)
+            self._ros.unsubscribe(topic, sid="stream")
         else:
             self._refcount[topic] = n
 

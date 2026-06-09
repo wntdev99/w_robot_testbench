@@ -26,10 +26,11 @@ from fastapi.staticfiles import StaticFiles
 from .config import load_config
 from .context import Context
 from .procman.orchestrator import Orchestrator
+from .recorder import Recorder
 from .ros.stream import StreamHub
 from .ros_bridge import RosBridge
 from .ws_manager import WsManager
-from .api import emergency, profiles, snapshots, system, topics, ws as ws_api
+from .api import emergency, profiles, recordings, snapshots, system, topics, ws as ws_api
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -48,6 +49,7 @@ async def _monitor_loop(app: FastAPI) -> None:
                 controller_host=ctx.cfg.controller.host if ctx.cfg.controller else None,
             )
             stats["zenoh"] = ctx.orch.zenoh.status()
+            ctx.recorder.on_system(stats)
             await ctx.ws.broadcast("system", stats, snapshot=True)
         except Exception:  # noqa: BLE001
             logger.exception("monitor loop")
@@ -77,7 +79,8 @@ async def lifespan(app: FastAPI):
     ws.bind_loop(asyncio.get_running_loop())
     orch = Orchestrator(cfg, ros, ws)
     stream = StreamHub(ros, ws, float(cfg.streaming.get("default_rate_hz", 20)))
-    app.state.ctx = Context(cfg=cfg, ros=ros, ws=ws, orch=orch, stream=stream)
+    recorder = Recorder(ros)
+    app.state.ctx = Context(cfg=cfg, ros=ros, ws=ws, orch=orch, stream=stream, recorder=recorder)
 
     tasks = [asyncio.create_task(_monitor_loop(app)),
              asyncio.create_task(_liveness_loop(app))]
@@ -93,6 +96,7 @@ async def lifespan(app: FastAPI):
     finally:
         for t in tasks:
             t.cancel()
+        recorder.stop_all()
         await orch.shutdown()
         ros.shutdown()
         with contextlib.suppress(Exception):
@@ -106,7 +110,7 @@ def build_app() -> FastAPI:
         allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?",
         allow_methods=["*"], allow_headers=["*"], allow_credentials=True,
     )
-    for r in (system.router, profiles.router, topics.router, emergency.router, snapshots.router, ws_api.router):
+    for r in (system.router, profiles.router, topics.router, emergency.router, snapshots.router, recordings.router, ws_api.router):
         app.include_router(r)
 
     @app.get("/api/health")

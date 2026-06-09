@@ -81,10 +81,10 @@ class RosBridge(Node):
         self._executor: SingleThreadedExecutor | None = None
         self._thread: threading.Thread | None = None
         self._subs: dict[str, Any] = {}                  # topic -> Subscription
-        self._sub_cbs: dict[str, Callable[[dict], None]] = {}
+        self._sub_cbs: dict[str, dict[str, Callable[[dict], None]]] = {}   # topic -> {sid: cb}
         # diagnostics 최신값: { hardware_id: { field: value, ... , "_name": status.name } }
         self._diag_latest: dict[str, dict[str, Any]] = {}
-        self._diag_cb: Callable[[dict], None] | None = None
+        self._diag_cbs: dict[str, Callable[[dict], None]] = {}             # sid -> cb
         self._diag_sub = None
         self._field_cache: dict[str, list[dict[str, Any]]] = {}   # type_str -> leaf fields
         self._goals: dict[str, tuple] = {}                        # goal_id -> (ActionClient, goal_handle)
@@ -200,14 +200,16 @@ class RosBridge(Node):
             for n, t in self.get_service_names_and_types()
         ]
 
-    # ── 동적 구독 ──
-    def subscribe(self, topic: str, type_str: str | None, cb: Callable[[dict], None]) -> bool:
+    # ── 동적 구독 (토픽당 다중 구독자 sid) ──
+    def subscribe(self, topic: str, type_str: str | None, cb: Callable[[dict], None],
+                  sid: str = "default") -> bool:
+        self._sub_cbs.setdefault(topic, {})[sid] = cb
         if topic in self._subs:
-            self._sub_cbs[topic] = cb
             return True
         type_str = type_str or self.get_topic_type(topic)
         if not type_str:
             logger.warning("구독 실패(타입 미상): %s", topic)
+            self._sub_cbs.get(topic, {}).pop(sid, None)
             return False
         try:
             msg_cls = get_message(_normalize_type(type_str))
@@ -215,12 +217,11 @@ class RosBridge(Node):
             logger.warning("메시지 타입 로드 실패 %s: %s", type_str, exc)
             return False
 
-        self._sub_cbs[topic] = cb
-
         def _on_msg(msg: Any, _topic: str = topic) -> None:
             try:
-                data = message_to_ordereddict(msg)
-                self._sub_cbs[_topic](dict(data))
+                data = dict(message_to_ordereddict(msg))
+                for c in list(self._sub_cbs.get(_topic, {}).values()):
+                    c(data)
             except Exception:  # noqa: BLE001
                 logger.exception("구독 콜백 오류 %s", _topic)
 
@@ -230,16 +231,24 @@ class RosBridge(Node):
         logger.info("구독 시작: %s (%s)", topic, type_str)
         return True
 
-    def unsubscribe(self, topic: str) -> None:
+    def unsubscribe(self, topic: str, sid: str = "default") -> None:
+        cbs = self._sub_cbs.get(topic)
+        if cbs:
+            cbs.pop(sid, None)
+            if cbs:
+                return  # 다른 구독자가 남아있으면 ROS 구독 유지
+            self._sub_cbs.pop(topic, None)
         sub = self._subs.pop(topic, None)
-        self._sub_cbs.pop(topic, None)
         if sub is not None:
             self.destroy_subscription(sub)
             logger.info("구독 해제: %s", topic)
 
-    # ── diagnostics 상시 구독 ──
-    def set_diagnostics_callback(self, cb: Callable[[dict], None]) -> None:
-        self._diag_cb = cb
+    # ── diagnostics 상시 구독 (다중 콜백 sid) ──
+    def set_diagnostics_callback(self, cb: Callable[[dict], None], sid: str = "default") -> None:
+        self._diag_cbs[sid] = cb
+
+    def remove_diagnostics_callback(self, sid: str = "default") -> None:
+        self._diag_cbs.pop(sid, None)
 
     def _subscribe_diagnostics(self) -> None:
         try:
@@ -270,8 +279,9 @@ class RosBridge(Node):
                 fields["_level"] = self._level_int(status.level)
                 self._diag_latest[hid] = fields
                 updated[hid] = fields
-            if self._diag_cb and updated:
-                self._diag_cb(updated)
+            if updated:
+                for cb in list(self._diag_cbs.values()):
+                    cb(updated)
         except Exception:  # noqa: BLE001 — 한 메시지 오류가 spin 을 죽이지 않도록
             logger.exception("diagnostics 콜백 오류")
 
