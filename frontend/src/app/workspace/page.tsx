@@ -97,12 +97,16 @@ export default function WorkspacePage() {
 
   // ── 스냅샷 저장/복원 ──
   const [snaps, setSnaps] = useState<{ name: string; updated: number }[]>([]);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [snapName, setSnapName] = useState("");
   const loadSnaps = () => api.snapshots().then(setSnaps).catch(() => {});
   useEffect(() => { loadSnaps(); }, []);
-  const saveSnap = async () => {
-    const name = window.prompt("스냅샷 이름");
+  const openSave = () => { setSnapName(""); setSaveOpen(true); };
+  const confirmSave = async () => {
+    const name = snapName.trim();
     if (!name) return;
     await api.saveSnapshot(name, { cols, panels }).catch(() => {});
+    setSaveOpen(false);
     loadSnaps();
   };
   const loadSnap = async (name: string) => {
@@ -149,7 +153,7 @@ export default function WorkspacePage() {
               <option value="">스냅샷 불러오기…</option>
               {snaps.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
             </select>
-            <button onClick={saveSnap} title="현재 구성 저장"
+            <button onClick={openSave} title="현재 구성 저장"
               className="flex items-center gap-1 rounded-lg bg-surface-muted px-2 py-1.5 font-medium hover:bg-surface-line">
               <Save size={13} /> 저장
             </button>
@@ -191,6 +195,29 @@ export default function WorkspacePage() {
           return <DiagnosticsWidget key={p.id} {...common} onChange={(patch) => update(p.id, patch)} />;
         })}
       </div>
+
+      {/* 스냅샷 저장 모달 (Toss풍) */}
+      {saveOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4" onClick={() => setSaveOpen(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-surface p-5 shadow-card" onClick={(e) => e.stopPropagation()}>
+            <div className="text-base font-bold">스냅샷 저장</div>
+            <p className="mt-1 text-xs text-ink-faint">현재 워크스페이스 구성을 이름으로 저장합니다. 같은 이름이면 덮어씁니다.</p>
+            <input
+              autoFocus value={snapName}
+              onChange={(e) => setSnapName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") confirmSave(); if (e.key === "Escape") setSaveOpen(false); }}
+              placeholder="예: 모터 온도 테스트"
+              className="mt-4 w-full rounded-xl border border-surface-line px-3 py-2 text-sm outline-none focus:border-brand-500"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setSaveOpen(false)}
+                className="rounded-xl bg-surface-muted px-4 py-2 text-sm font-medium text-ink-soft hover:bg-surface-line">취소</button>
+              <button onClick={confirmSave} disabled={!snapName.trim()}
+                className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">저장</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
