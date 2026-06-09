@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench, Rocket, Gamepad2, Save, Circle, Camera, Map } from "lucide-react";
 import { api } from "@/lib/api";
 import { useTb } from "@/lib/store";
@@ -80,6 +81,10 @@ const ADD_MENU: { type: PanelType; label: string; icon: any }[] = [
 ];
 
 export default function WorkspacePage() {
+  return <Suspense fallback={null}><WorkspaceInner /></Suspense>;
+}
+
+function WorkspaceInner() {
   const subscribe = useTb((s) => s.subscribe);
   const unsubscribe = useTb((s) => s.unsubscribe);
 
@@ -159,11 +164,10 @@ export default function WorkspacePage() {
     await api.deleteSnapshot(name).catch(() => {});
     loadSnaps();
   };
-  // 대시보드에서 ?snapshot=이름 으로 진입 시 자동 복원
-  useEffect(() => {
-    const snap = new URLSearchParams(window.location.search).get("snapshot");
-    if (snap) loadSnap(snap);
-  }, []); // eslint-disable-line
+  // ?snapshot=이름 진입/변경 시 자동 복원 (사이드바·대시보드에서 클릭 시, 마운트 유지 중에도 반영)
+  const searchParams = useSearchParams();
+  const snapParam = searchParams.get("snapshot");
+  useEffect(() => { if (snapParam) loadSnap(snapParam); }, [snapParam]); // eslint-disable-line
 
   const visible = topics.filter((t) => (onlyPlottable ? t.plottable : true));
   const canRemove = panels.length > 1;
