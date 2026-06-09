@@ -88,6 +88,7 @@ class RosBridge(Node):
         self._diag_sub = None
         self._raw_subs: dict[str, Any] = {}                               # topic -> Subscription
         self._raw_cbs: dict[str, dict[str, Callable[[Any], None]]] = {}    # topic -> {sid: cb}
+        self._pubs: dict[str, tuple] = {}                                 # "topic|type" -> (publisher, msg_cls)
         self._field_cache: dict[str, list[dict[str, Any]]] = {}   # type_str -> leaf fields
         self._goals: dict[str, tuple] = {}                        # goal_id -> (ActionClient, goal_handle)
         self._goal_seq = 0
@@ -331,15 +332,20 @@ class RosBridge(Node):
     def diagnostics_snapshot(self) -> dict[str, dict[str, Any]]:
         return dict(self._diag_latest)
 
-    # ── publish ──
+    # ── publish (퍼블리셔 캐시 — 즉시 파괴 시 메시지 유실 방지, 텔레옵 반복발행 효율) ──
     def publish_once(self, topic: str, type_str: str, data: dict) -> None:
-        msg_cls = get_message(_normalize_type(type_str))
-        pub = self.create_publisher(msg_cls, topic, 10)
+        norm = _normalize_type(type_str)
+        key = f"{topic}|{norm}"
+        entry = self._pubs.get(key)
+        if entry is None:
+            msg_cls = get_message(norm)
+            pub = self.create_publisher(msg_cls, topic, 10)
+            entry = (pub, msg_cls)
+            self._pubs[key] = entry
+        pub, msg_cls = entry
         msg = msg_cls()
         set_message_fields(msg, data)
         pub.publish(msg)
-        # 짧게 유지 후 정리 (one-shot)
-        self.destroy_publisher(pub)
 
     # ── service (동기 호출, executor 스레드에서 spin) ──
     def call_service_sync(self, srv_type: str, name: str, request: dict, timeout: float = 5.0) -> dict:

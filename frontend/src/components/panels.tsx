@@ -503,6 +503,10 @@ export function NavWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () 
   const [layers, setLayers] = useState({ scan: true, footprint: true, pose: true });
   const layersRef = useRef(layers); layersRef.current = layers;
   const [status, setStatus] = useState("로딩…");
+  const [mode, setMode] = useState<null | "initialpose" | "goal">(null);
+  const modeRef = useRef(mode); modeRef.current = mode;
+  const poseRef = useRef<{ wx: number; wy: number; yaw: number } | null>(null);
+  const [msg, setMsg] = useState("");
 
   const loadMap = () => {
     api.navMeta().then((m) => {
@@ -529,6 +533,24 @@ export function NavWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () 
     const py = m.height! - (wy - m.origin!.y) / m.resolution!;
     return [v.ox + px * v.s, v.oy + py * v.s];
   };
+  const c2w = (cx: number, cy: number): [number, number] => {
+    const m = metaRef.current!, v = viewRef.current;
+    const px = (cx - v.ox) / v.s, py = (cy - v.oy) / v.s;
+    return [px * m.resolution! + m.origin!.x, (m.height! - py) * m.resolution! + m.origin!.y];
+  };
+  const publishPose = (kind: "initialpose" | "goal", wx: number, wy: number, yaw: number) => {
+    const orientation = { x: 0, y: 0, z: Math.sin(yaw / 2), w: Math.cos(yaw / 2) };
+    if (kind === "initialpose") {
+      const cov = new Array(36).fill(0); cov[0] = 0.25; cov[7] = 0.25; cov[35] = 0.0685;
+      api.publish("/initialpose", "geometry_msgs/msg/PoseWithCovarianceStamped",
+        { header: { frame_id: "map" }, pose: { pose: { position: { x: wx, y: wy, z: 0 }, orientation }, covariance: cov } })
+        .then(() => setMsg(`초기 위치 설정 (${wx.toFixed(2)}, ${wy.toFixed(2)})`)).catch((e) => setMsg(String(e)));
+    } else {
+      api.publish("/goal_pose", "geometry_msgs/msg/PoseStamped",
+        { header: { frame_id: "map" }, pose: { position: { x: wx, y: wy, z: 0 }, orientation } })
+        .then(() => setMsg(`목표 전송 (${wx.toFixed(2)}, ${wy.toFixed(2)})`)).catch((e) => setMsg(String(e)));
+    }
+  };
 
   const draw = () => {
     const cv = canvasRef.current; if (!cv) return;
@@ -554,6 +576,17 @@ export function NavWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () 
         ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(hx, hy); ctx.stroke();
         ctx.beginPath(); ctx.arc(bx, by, 5, 0, Math.PI * 2); ctx.fill();
       }
+      // 인터랙션 미리보기 화살표
+      const pd = poseRef.current;
+      if (pd) {
+        const col = modeRef.current === "initialpose" ? "#12b886" : "#3182f6";
+        const len = 0.5;
+        const [bx, by] = w2c(pd.wx, pd.wy);
+        const [hx, hy] = w2c(pd.wx + len * Math.cos(pd.yaw), pd.wy + len * Math.sin(pd.yaw));
+        ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(hx, hy); ctx.stroke();
+        ctx.beginPath(); ctx.arc(bx, by, 5, 0, Math.PI * 2); ctx.fill();
+      }
     }
   };
 
@@ -569,15 +602,39 @@ export function NavWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () 
     // eslint-disable-next-line
   }, []);
 
-  // pan/zoom
+  // pan/zoom + pose 인터랙션
   const drag = useRef<{ x: number; y: number } | null>(null);
-  const onDown = (e: React.PointerEvent) => { drag.current = { x: e.clientX, y: e.clientY }; (e.target as Element).setPointerCapture(e.pointerId); };
+  const canvasXY = (e: React.PointerEvent): [number, number] => {
+    const r = canvasRef.current!.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  };
+  const onDown = (e: React.PointerEvent) => {
+    (e.target as Element).setPointerCapture(e.pointerId);
+    if (modeRef.current && metaRef.current?.has_map) {
+      const [cx, cy] = canvasXY(e); const [wx, wy] = c2w(cx, cy);
+      poseRef.current = { wx, wy, yaw: 0 };
+    } else {
+      drag.current = { x: e.clientX, y: e.clientY };
+    }
+  };
   const onMove = (e: React.PointerEvent) => {
+    if (poseRef.current) {
+      const [cx, cy] = canvasXY(e); const [wx, wy] = c2w(cx, cy);
+      poseRef.current.yaw = Math.atan2(wy - poseRef.current.wy, wx - poseRef.current.wx);
+      return;
+    }
     if (!drag.current) return;
     const v = viewRef.current; v.ox += e.clientX - drag.current.x; v.oy += e.clientY - drag.current.y;
     drag.current = { x: e.clientX, y: e.clientY };
   };
-  const onUp = () => { drag.current = null; };
+  const onUp = () => {
+    if (poseRef.current) {
+      const { wx, wy, yaw } = poseRef.current;
+      publishPose(modeRef.current!, wx, wy, yaw);
+      poseRef.current = null; setMode(null);
+    }
+    drag.current = null;
+  };
   const onWheel = (e: React.WheelEvent) => {
     const cv = canvasRef.current; if (!cv) return;
     const rect = cv.getBoundingClientRect();
@@ -592,20 +649,28 @@ export function NavWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () 
     <Shell title="네비게이션" onRemove={onRemove} canRemove={canRemove}
       head={
         <div className="flex items-center gap-2 text-xs">
+          <button onClick={() => setMode((m) => (m === "initialpose" ? null : "initialpose"))}
+            className={cn("rounded px-2 py-0.5 font-medium", mode === "initialpose" ? "bg-ok text-white" : "bg-ok/10 text-ok")}>2D Pose</button>
+          <button onClick={() => setMode((m) => (m === "goal" ? null : "goal"))}
+            className={cn("rounded px-2 py-0.5 font-medium", mode === "goal" ? "bg-brand-500 text-white" : "bg-brand-50 text-brand-700")}>Nav Goal</button>
+          <span className="h-3 w-px bg-surface-line" />
           {(["scan", "footprint", "pose"] as const).map((k) => (
             <label key={k} className="flex items-center gap-1 text-ink-soft">
               <input type="checkbox" checked={layers[k]} onChange={() => toggle(k)} /> {k}
             </label>
           ))}
-          <button onClick={() => { loadMap(); fittedRef.current = false; }} className="rounded bg-surface-muted px-2 py-0.5 hover:bg-surface-line">맵 새로고침</button>
+          <button onClick={() => { loadMap(); fittedRef.current = false; }} className="rounded bg-surface-muted px-2 py-0.5 hover:bg-surface-line">맵</button>
         </div>
       }>
       <div ref={wrapRef} className="relative w-full">
         {status && <div className="absolute z-10 m-2 rounded bg-surface/80 px-2 py-1 text-xs text-ink-faint">{status}</div>}
         <canvas ref={canvasRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onWheel={onWheel}
-          className="w-full cursor-move touch-none rounded-lg" style={{ height: 340 }} />
+          className={cn("w-full touch-none rounded-lg", mode ? "cursor-crosshair" : "cursor-move")} style={{ height: 340 }} />
       </div>
-      <div className="mt-1 text-[11px] text-ink-faint">드래그=이동 · 휠=확대 · 🟢로봇 🔵footprint 🔴scan (시각화만 — init pose/goal은 후속)</div>
+      <div className="mt-1 flex items-center justify-between text-[11px] text-ink-faint">
+        <span>{mode ? `${mode === "initialpose" ? "2D Pose" : "Nav Goal"}: 클릭+드래그로 위치·방향 지정` : "드래그=이동 · 휠=확대 · 🟢로봇 🔵footprint 🔴scan"}</span>
+        {msg && <span className="text-ink-soft">{msg}</span>}
+      </div>
     </Shell>
   );
 }
