@@ -44,5 +44,14 @@ export const api = {
     ),
   callService: (type: string, name: string, request: any) =>
     req<any>("/api/service", { method: "POST", body: JSON.stringify({ type, name, request }) }),
+  actions: () => req<{ action: string; types: string[] }[]>("/api/actions"),
+  actionFields: (action: string, type?: string) =>
+    req<{ action: string; type: string; fields: { path: string; base_type: string; array: boolean; plottable: boolean }[] }>(
+      `/api/actions/fields?action=${encodeURIComponent(action)}${type ? `&type=${encodeURIComponent(type)}` : ""}`,
+    ),
+  sendAction: (type: string, name: string, goal: any) =>
+    req<{ goal_id: string; accepted: boolean }>("/api/action", { method: "POST", body: JSON.stringify({ type, name, goal }) }),
+  cancelAction: (goal_id: string) =>
+    req<any>("/api/action/cancel", { method: "POST", body: JSON.stringify({ goal_id }) }),
   estop: () => req<any>("/api/emergency/stop", { method: "POST" }),
 };

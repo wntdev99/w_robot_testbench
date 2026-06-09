@@ -299,117 +299,141 @@ function buildPayload(fields: Field[], vals: Record<string, any>) {
   return data;
 }
 
+type CmdMode = "publish" | "service" | "action";
 export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRemove }: {
   panel: Panel; topics: Topic[]; typeOf: (t: string) => string | undefined;
   onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
 }) {
-  const [mode, setMode] = useState<"publish" | "service">("publish");
+  const [mode, setMode] = useState<CmdMode>("publish");
   const [fields, setFields] = useState<Field[]>([]);
   const [vals, setVals] = useState<Record<string, any>>({});
   const [msg, setMsg] = useState("");
-  // service 전용
-  const [services, setServices] = useState<{ service: string; types: string[] }[]>([]);
-  const [svc, setSvc] = useState("");
-  const [svcType, setSvcType] = useState("");
   const [jsonMode, setJsonMode] = useState(false);
   const [jsonText, setJsonText] = useState("{}");
+  // service
+  const [services, setServices] = useState<{ service: string; types: string[] }[]>([]);
+  const [svc, setSvc] = useState(""); const [svcType, setSvcType] = useState("");
+  // action
+  const [acts, setActs] = useState<{ action: string; types: string[] }[]>([]);
+  const [act, setAct] = useState(""); const [actType, setActType] = useState(""); const [gid, setGid] = useState<string | null>(null);
+  const actionEvents = useTb((s) => s.actions);
 
   const topic = panel.cmdTopic ?? "";
   const hasArray = fields.some((f) => f.array);
   const scalarFields = fields.filter((f) => !f.array);
 
-  // publish: 토픽 필드
-  useEffect(() => {
+  useEffect(() => { // publish 필드
     if (mode !== "publish") return;
     let alive = true; setVals({}); setMsg("");
     if (!topic) { setFields([]); return; }
     api.topicFields(topic, typeOf(topic)).then((r) => alive && setFields(r.fields)).catch(() => alive && setFields([]));
     return () => { alive = false; };
   }, [topic, mode]); // eslint-disable-line
-
-  // service: 목록
   useEffect(() => { if (mode === "service") api.services().then(setServices).catch(() => {}); }, [mode]);
-  // service: 요청 필드
-  useEffect(() => {
+  useEffect(() => { if (mode === "action") api.actions().then(setActs).catch(() => {}); }, [mode]);
+  useEffect(() => { // service 요청 필드
     if (mode !== "service") return;
     let alive = true; setVals({}); setMsg("");
     if (!svc) { setFields([]); setSvcType(""); return; }
-    api.serviceFields(svc).then((r) => { if (!alive) return; setFields(r.fields); setSvcType(r.type); setJsonText("{}"); })
-      .catch(() => alive && setFields([]));
+    api.serviceFields(svc).then((r) => { if (!alive) return; setFields(r.fields); setSvcType(r.type); setJsonText("{}"); }).catch(() => alive && setFields([]));
     return () => { alive = false; };
   }, [svc, mode]); // eslint-disable-line
+  useEffect(() => { // action goal 필드
+    if (mode !== "action") return;
+    let alive = true; setVals({}); setMsg(""); setGid(null);
+    if (!act) { setFields([]); setActType(""); return; }
+    api.actionFields(act).then((r) => { if (!alive) return; setFields(r.fields); setActType(r.type); setJsonText("{}"); }).catch(() => alive && setFields([]));
+    return () => { alive = false; };
+  }, [act, mode]); // eslint-disable-line
 
+  const buildReq = () => (jsonMode ? JSON.parse(jsonText) : buildPayload(scalarFields, vals));
   const sendPublish = async () => {
     const type = typeOf(topic); if (!type) return;
-    try { await api.publish(topic, type, buildPayload(scalarFields, vals)); setMsg("publish ✓ " + new Date().toLocaleTimeString()); }
-    catch (e) { setMsg(String(e)); }
+    try { await api.publish(topic, type, buildPayload(scalarFields, vals)); setMsg("publish ✓ " + new Date().toLocaleTimeString()); } catch (e) { setMsg(String(e)); }
   };
   const callSvc = async () => {
-    if (!svc || !svcType) return;
-    let reqBody: any;
-    try { reqBody = jsonMode ? JSON.parse(jsonText) : buildPayload(scalarFields, vals); }
-    catch { setMsg("JSON 파싱 오류"); return; }
-    try { const r = await api.callService(svcType, svc, reqBody); setMsg("응답: " + JSON.stringify(r.response ?? r)); }
-    catch (e) { setMsg(String(e)); }
+    if (!svc || !svcType) return; let b: any;
+    try { b = buildReq(); } catch { setMsg("JSON 파싱 오류"); return; }
+    try { const r = await api.callService(svcType, svc, b); setMsg("응답: " + JSON.stringify(r.response ?? r)); } catch (e) { setMsg(String(e)); }
   };
+  const sendAction = async () => {
+    if (!act || !actType) return; let g: any;
+    try { g = buildReq(); } catch { setMsg("JSON 파싱 오류"); return; }
+    try { const r = await api.sendAction(actType, act, g); setGid(r.goal_id); setMsg(r.accepted ? `goal 수락 (${r.goal_id})` : "goal 거부됨"); } catch (e) { setMsg(String(e)); }
+  };
+  const cancel = async () => { if (gid) { try { await api.cancelAction(gid); setMsg("취소 요청 전송"); } catch (e) { setMsg(String(e)); } } };
+
+  // 주의: 컴포넌트(<SendForm/>)로 두면 매 렌더 리마운트→입력 포커스 손실. 함수 호출로 인라인 렌더.
+  const renderSend = (onSend: () => void, label: string) => (
+    <div className="space-y-2">
+      {(hasArray || fields.length === 0) && (
+        <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+          <input type="checkbox" checked={jsonMode} onChange={(e) => setJsonMode(e.target.checked)} /> JSON 직접 입력 (배열/복합/타입 미상)
+        </label>
+      )}
+      {jsonMode ? (
+        <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} rows={5}
+          className="w-full rounded-lg border border-surface-line px-2 py-1 font-mono text-xs" placeholder='{"order": 5}' />
+      ) : scalarFields.length > 0 ? <FieldForm fields={scalarFields} vals={vals} setVals={setVals} />
+        : <div className="text-xs text-ink-faint">필드 없음/미상 — 필요 시 JSON 직접 입력</div>}
+      <button onClick={onSend} className="mt-1 w-full rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-white active:scale-[.98]">{label}</button>
+      {msg && <div className="break-all text-xs text-ink-faint">{msg}</div>}
+    </div>
+  );
+
+  const ev = gid ? actionEvents[gid] : undefined;
 
   return (
     <Shell title="명령" onRemove={onRemove} canRemove={canRemove}
       head={
         <div className="flex items-center gap-1.5">
           <div className="flex rounded-lg bg-surface-muted p-0.5 text-xs">
-            {(["publish", "service"] as const).map((m) => (
-              <button key={m} onClick={() => { setMode(m); setFields([]); setMsg(""); }}
+            {(["publish", "service", "action"] as CmdMode[]).map((m) => (
+              <button key={m} onClick={() => { setMode(m); setFields([]); setMsg(""); setJsonMode(false); }}
                 className={cn("rounded-md px-2 py-0.5", mode === m ? "bg-surface text-ink shadow-card" : "text-ink-faint")}>
-                {m === "publish" ? "토픽" : "서비스"}
+                {m === "publish" ? "토픽" : m === "service" ? "서비스" : "액션"}
               </button>
             ))}
           </div>
-          {mode === "publish" ? (
-            <select value={topic} onChange={(e) => onChange({ cmdTopic: e.target.value })}
-              className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[200px]">
-              <option value="">토픽…</option>
-              {topics.map((t) => <option key={t.topic} value={t.topic}>{t.topic}</option>)}
+          {mode === "publish" && (
+            <select value={topic} onChange={(e) => onChange({ cmdTopic: e.target.value })} className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[180px]">
+              <option value="">토픽…</option>{topics.map((t) => <option key={t.topic} value={t.topic}>{t.topic}</option>)}
             </select>
-          ) : (
-            <select value={svc} onChange={(e) => setSvc(e.target.value)}
-              className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[200px]">
-              <option value="">서비스…</option>
-              {services.map((s) => <option key={s.service} value={s.service}>{s.service}</option>)}
+          )}
+          {mode === "service" && (
+            <select value={svc} onChange={(e) => setSvc(e.target.value)} className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[180px]">
+              <option value="">서비스…</option>{services.map((s) => <option key={s.service} value={s.service}>{s.service}</option>)}
+            </select>
+          )}
+          {mode === "action" && (
+            <select value={act} onChange={(e) => setAct(e.target.value)} className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[180px]">
+              <option value="">액션…</option>{acts.map((a) => <option key={a.action} value={a.action}>{a.action}</option>)}
             </select>
           )}
         </div>
       }>
-      {mode === "publish" ? (
-        topic ? (
-          scalarFields.length > 0 ? (
-            <div className="space-y-2">
-              <FieldForm fields={scalarFields} vals={vals} setVals={setVals} />
-              <button onClick={sendPublish} className="mt-1 w-full rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-white active:scale-[.98]">보내기 (publish)</button>
-              {msg && <div className="break-all text-xs text-ink-faint">{msg}</div>}
-              {hasArray && <div className="text-[11px] text-warn">※ 배열 필드는 폼 미지원(스칼라만 전송).</div>}
-            </div>
-          ) : <div className="py-4 text-sm text-ink-faint">스칼라 필드 없음</div>
-        ) : <div className="py-4 text-sm text-ink-faint">토픽을 선택하세요 (예: /swerve_controller/cmd_vel)</div>
-      ) : (
-        svc ? (
-          <div className="space-y-2">
-            <div className="text-[11px] text-ink-faint">{svcType}</div>
-            <label className="flex items-center gap-1.5 text-xs text-ink-soft">
-              <input type="checkbox" checked={jsonMode} onChange={(e) => setJsonMode(e.target.checked)} />
-              JSON 직접 입력 (배열/복합/타입 미상 시)
-            </label>
-            {jsonMode ? (
-              <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} rows={5}
-                className="w-full rounded-lg border border-surface-line px-2 py-1 font-mono text-xs" placeholder='{"data": true}' />
-            ) : scalarFields.length > 0 ? (
-              <FieldForm fields={scalarFields} vals={vals} setVals={setVals} />
-            ) : <div className="text-xs text-ink-faint">요청 필드 없음(빈 요청) 또는 타입 미상 — 필요 시 JSON 직접 입력 사용{hasArray ? " (배열 필드 있음)" : ""}</div>}
-            <button onClick={callSvc} className="mt-1 w-full rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-white active:scale-[.98]">호출 (call)</button>
-            {msg && <div className="break-all text-xs text-ink-faint">{msg}</div>}
-          </div>
-        ) : <div className="py-4 text-sm text-ink-faint">서비스를 선택하세요</div>
-      )}
+      {mode === "publish" && (topic
+        ? renderSend(sendPublish, "보내기 (publish)")
+        : <div className="py-4 text-sm text-ink-faint">토픽을 선택하세요 (예: /swerve_controller/cmd_vel)</div>)}
+      {mode === "service" && (svc
+        ? <><div className="mb-1 text-[11px] text-ink-faint">{svcType}</div>{renderSend(callSvc, "호출 (call)")}</>
+        : <div className="py-4 text-sm text-ink-faint">서비스를 선택하세요</div>)}
+      {mode === "action" && (act
+        ? <>
+            <div className="mb-1 text-[11px] text-ink-faint">{actType}</div>
+            {renderSend(sendAction, "goal 전송")}
+            {gid && (
+              <div className="mt-2 rounded-lg bg-surface-muted p-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">goal {gid}</span>
+                  {!ev?.result && <button onClick={cancel} className="rounded bg-danger/10 px-2 py-0.5 text-danger">취소</button>}
+                </div>
+                {ev?.feedback && <div className="mt-1 break-all text-ink-soft">feedback: {JSON.stringify(ev.feedback)}</div>}
+                {ev?.result && <div className="mt-1 break-all text-ok">result(status {ev.result.status}): {JSON.stringify(ev.result.result)}</div>}
+              </div>
+            )}
+          </>
+        : <div className="py-4 text-sm text-ink-faint">액션을 선택하세요 (예: /navigate_to_pose)</div>)}
     </Shell>
   );
 }

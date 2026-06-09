@@ -1,6 +1,8 @@
 """토픽/명령 API — 런타임 토픽 발견, publish/service, controller_manager, subsystems."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
@@ -97,6 +99,52 @@ async def call_service(body: ServiceBody, request: Request):
         return {"ok": True, "response": res}
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, str(e))
+
+
+@router.get("/actions")
+async def list_actions(request: Request):
+    return request.app.state.ctx.ros.list_actions()
+
+
+@router.get("/actions/fields")
+async def action_fields(action: str, request: Request, type: str | None = None):
+    ros = request.app.state.ctx.ros
+    atype = type or next((a["types"][0] for a in ros.list_actions()
+                          if a["action"] == action and a["types"]), None)
+    if not atype:
+        raise HTTPException(404, f"액션 타입 미상: {action}. type 파라미터로 지정 가능")
+    return {"action": action, "type": atype, "fields": ros.action_goal_fields(atype)}
+
+
+class ActionBody(BaseModel):
+    type: str
+    name: str
+    goal: dict = {}
+
+
+@router.post("/action")
+async def send_action(body: ActionBody, request: Request):
+    ctx = request.app.state.ctx
+
+    def on_fb(gid: str, fb: dict) -> None:
+        ctx.ws.broadcast_threadsafe("action_feedback", {"goal_id": gid, "action": body.name, "feedback": fb})
+
+    def on_res(gid: str, res: dict) -> None:
+        ctx.ws.broadcast_threadsafe("action_result", {"goal_id": gid, "action": body.name, **res})
+
+    try:
+        return await asyncio.to_thread(ctx.ros.send_action_goal, body.type, body.name, body.goal, on_fb, on_res)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, str(e))
+
+
+class CancelBody(BaseModel):
+    goal_id: str
+
+
+@router.post("/action/cancel")
+async def cancel_action(body: CancelBody, request: Request):
+    return request.app.state.ctx.ros.cancel_action(body.goal_id)
 
 
 @router.get("/controllers")

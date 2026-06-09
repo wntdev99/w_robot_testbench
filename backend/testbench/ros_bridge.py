@@ -19,11 +19,12 @@ import threading
 from typing import Any, Callable
 
 import rclpy
+from rclpy.action import ActionClient, get_action_names_and_types
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
-from rosidl_runtime_py.utilities import get_message, get_service
+from rosidl_runtime_py.utilities import get_action, get_message, get_service
 from rosidl_runtime_py import message_to_ordereddict, set_message_fields
 
 logger = logging.getLogger("testbench.ros")
@@ -55,6 +56,14 @@ def _normalize_service(type_str: str) -> str:
     return type_str
 
 
+def _normalize_action(type_str: str) -> str:
+    """'pkg/Action' → 'pkg/action/Action' 정규화."""
+    parts = type_str.split("/")
+    if len(parts) == 2:
+        return f"{parts[0]}/action/{parts[1]}"
+    return type_str
+
+
 def _split_array(ftype: str) -> tuple[str, bool]:
     """'sequence<double>' / 'double[3]' / 'sequence<double, 5>' → ('double', True)."""
     m = re.match(r"^sequence<(.+?)(?:,\s*\d+)?>$", ftype)
@@ -78,6 +87,8 @@ class RosBridge(Node):
         self._diag_cb: Callable[[dict], None] | None = None
         self._diag_sub = None
         self._field_cache: dict[str, list[dict[str, Any]]] = {}   # type_str -> leaf fields
+        self._goals: dict[str, tuple] = {}                        # goal_id -> (ActionClient, goal_handle)
+        self._goal_seq = 0
 
     # ── 생명주기 ──
     def start(self) -> None:
@@ -316,3 +327,84 @@ class RosBridge(Node):
                 "activate_asap": True,
             },
         )
+
+    # ── 액션 (goal/feedback/result/cancel) ──
+    def list_actions(self) -> list[dict[str, Any]]:
+        out = []
+        for name, types in get_action_names_and_types(self):
+            out.append({"action": name, "types": types})
+        return sorted(out, key=lambda x: x["action"])
+
+    def action_goal_fields(self, action_type: str) -> list[dict[str, Any]]:
+        if not action_type:
+            return []
+        norm = _normalize_action(action_type)
+        key = f"act:{norm}"
+        if key in self._field_cache:
+            return self._field_cache[key]
+        out: list[dict[str, Any]] = []
+        try:
+            self._fields_of_class(get_action(norm).Goal, "", out, 0)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("액션 Goal 필드 분석 실패 %s: %s", action_type, exc)
+        self._field_cache[key] = out
+        return out
+
+    def send_action_goal(self, action_type: str, name: str, goal: dict,
+                         on_feedback: Callable[[str, dict], None],
+                         on_result: Callable[[str, dict], None],
+                         timeout: float = 5.0) -> dict:
+        """액션 goal 전송. goal 수락 여부를 동기 반환하고, feedback/result 는 콜백으로 비동기 전달."""
+        import time
+        norm = _normalize_action(action_type)
+        act_cls = get_action(norm)
+        client = ActionClient(self, act_cls, name)
+        if not client.wait_for_server(timeout_sec=timeout):
+            client.destroy()
+            raise TimeoutError(f"액션 서버 미발견: {name}")
+        self._goal_seq += 1
+        gid = f"g{self._goal_seq}"
+        goal_msg = act_cls.Goal()
+        set_message_fields(goal_msg, goal or {})
+
+        def _fb(fb_msg: Any, _gid: str = gid) -> None:
+            try:
+                on_feedback(_gid, dict(message_to_ordereddict(fb_msg.feedback)))
+            except Exception:  # noqa: BLE001
+                logger.exception("액션 feedback 콜백 오류")
+
+        send_future = client.send_goal_async(goal_msg, feedback_callback=_fb)
+        deadline = time.time() + timeout
+        while not send_future.done() and time.time() < deadline:
+            time.sleep(0.02)
+        if not send_future.done():
+            client.destroy()
+            raise TimeoutError("goal 전송 시간초과")
+        handle = send_future.result()
+        if not handle.accepted:
+            client.destroy()
+            return {"goal_id": gid, "accepted": False}
+
+        self._goals[gid] = (client, handle)
+        result_future = handle.get_result_async()
+
+        def _done(fut: Any, _gid: str = gid, _client: Any = client) -> None:
+            try:
+                r = fut.result()
+                on_result(_gid, {"status": int(r.status),
+                                 "result": dict(message_to_ordereddict(r.result))})
+            except Exception:  # noqa: BLE001
+                logger.exception("액션 result 콜백 오류")
+            finally:
+                self._goals.pop(_gid, None)
+                _client.destroy()
+
+        result_future.add_done_callback(_done)
+        return {"goal_id": gid, "accepted": True}
+
+    def cancel_action(self, goal_id: str) -> dict:
+        g = self._goals.get(goal_id)
+        if not g:
+            return {"ok": False, "reason": "unknown goal_id"}
+        g[1].cancel_goal_async()
+        return {"ok": True, "goal_id": goal_id}

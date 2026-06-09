@@ -13,6 +13,7 @@ interface TbState {
   diagnostics: Record<string, any>;
   topicData: Record<string, TopicSample>;
   estop: any | null;
+  actions: Record<string, any>;   // goal_id -> {action, feedback?, result?}
 
   _ws?: WebSocket;
   _subs: Set<string>;
@@ -30,6 +31,7 @@ export const useTb = create<TbState>((set, get) => ({
   diagnostics: {},
   topicData: {},
   estop: null,
+  actions: {},
   _subs: new Set(),
 
   connect: () => {
@@ -69,6 +71,12 @@ export const useTb = create<TbState>((set, get) => ({
             break;
           case "estop":
             set({ estop: d });
+            break;
+          case "action_feedback":
+            set({ actions: { ...get().actions, [d.goal_id]: { ...get().actions[d.goal_id], action: d.action, feedback: d.feedback } } });
+            break;
+          case "action_result":
+            set({ actions: { ...get().actions, [d.goal_id]: { ...get().actions[d.goal_id], action: d.action, result: { status: d.status, result: d.result } } } });
             break;
         }
       };
