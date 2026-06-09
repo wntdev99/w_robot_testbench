@@ -25,6 +25,7 @@
 16. **프로세스 기동·종료 검증**(reconciler 심장) — 로컬 단일/그룹(PGID 트리)·원격 기동/지속(setsid)/PID종료 전부 ✅. 구현 지침 도출: setsid 기동 + PID/PGID 종료, `pkill -f` 금지(오살 실측)
 17. **Clean-Slate + baseline 기동 end-to-end 실증**(백엔드 mock) — 실가동 런치 전부 종료(202·201=0) → zenoh·robot·control 순차 기동+healthcheck 전부 ✅ → baseline 노드만 복구. 스크립트: `scripts/bootgate_test_{202,201}.sh`
 18. 검증 종료 — 테스트 baseline 전부 종료(202 노드 0, 202·201 ROS proc 0, 로봇 정리). 검증 커밋: `ab7b791`(4대가정)·`d150268`(프로세스)·`89563b4`(부트게이트)
+19. **P0 스캐폴딩 완료** (`fa50f9c`) — 백엔드(FastAPI+rclpy 골격, bt_gui 패턴 계승, py_compile ✅) + 프론트(Next.js14+TS+Tailwind 셸, build ✅). boot_gate/api/ws_manager/config + 셸(Sidebar·StatusPulse·EmergencyStopBar)·디자인토큰·빈 라우트 5. **백엔드 실제 기동은 202 pip 설치 후**
 
 ---
 
@@ -39,7 +40,7 @@
 - [ ] (런타임 발견 원칙) 도어/컨베이어/암/카메라·충전 인터페이스 — 박제 X, 해당 프로젝트 저작 시 introspect
 
 ### 구현 로드맵 (DESIGN §11)
-- [ ] **P0 스캐폴딩** — 레포 골격, FastAPI+rclpy(ros_bridge/ws_manager 이식), Next.js14, 디자인토큰, 전역 상태바+E-stop, **boot_gate**
+- [x] ~~**P0 스캐폴딩**~~ ✅ (`fa50f9c`) 백엔드 py_compile + 프론트 build 통과. 백엔드 실제 기동은 202 pip 설치 후
 - [ ] **P1 인프라+텔레옵 프로젝트** — 동적 baseline·zenoh·autostart(SSH)·시스템모니터·201토폴로지 / **builtin 텔레옵 프로젝트 실행**(수렴·preflight·라이브) / joint_states·모터온도 plot / controller switch·직접명령
 - [ ] **P2 프로젝트 저작 UI** — 레이아웃 빌더(그리드·위젯 팔레트), 위젯 동적폼(introspect), 프로젝트 CRUD·복제
 - [ ] **P3 수렴·preflight 완성** — reconciler(orphan 승인 종료)·preflight(존재·발행)·report_missing 보강 루프·owned-registry/난입 감지
