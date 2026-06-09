@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench, Rocket, Gamepad2, Save, Circle, Camera } from "lucide-react";
+import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench, Rocket, Gamepad2, Save, Circle, Camera, Map } from "lucide-react";
 import { api } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { cn } from "@/lib/cn";
 import {
   Panel, PanelType, Topic,
-  PlotWidget, ControllersWidget, DiagnosticsWidget, CommandWidget, LaunchWidget, TeleopWidget, RecorderWidget, CameraWidget,
+  PlotWidget, ControllersWidget, DiagnosticsWidget, CommandWidget, LaunchWidget, TeleopWidget, RecorderWidget, CameraWidget, NavWidget,
 } from "@/components/panels";
 
 let _pid = 0;
@@ -50,6 +50,7 @@ function RunningBar() {
 
 const ADD_MENU: { type: PanelType; label: string; icon: any }[] = [
   { type: "plot", label: "플롯", icon: LineChart },
+  { type: "nav", label: "네비게이션", icon: Map },
   { type: "camera", label: "카메라", icon: Camera },
   { type: "recorder", label: "녹화", icon: Circle },
   { type: "teleop", label: "텔레옵", icon: Gamepad2 },
@@ -199,6 +200,7 @@ export default function WorkspacePage() {
           if (p.type === "launch") return <LaunchWidget key={p.id} {...common} />;
           if (p.type === "recorder") return <RecorderWidget key={p.id} {...common} topics={visible} />;
           if (p.type === "camera") return <CameraWidget key={p.id} {...common} onChange={(patch) => update(p.id, patch)} />;
+          if (p.type === "nav") return <NavWidget key={p.id} {...common} />;
           if (p.type === "teleop") return <TeleopWidget key={p.id} {...common} onChange={(patch) => update(p.id, patch)} />;
           if (p.type === "controllers") return <ControllersWidget key={p.id} {...common} />;
           return <DiagnosticsWidget key={p.id} {...common} onChange={(patch) => update(p.id, patch)} />;

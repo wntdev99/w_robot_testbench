@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from .camera import CameraManager
 from .config import Config
+from .navviz import NavViz
 from .procman.orchestrator import Orchestrator
 from .recorder import Recorder
 from .ros_bridge import RosBridge
@@ -21,4 +22,5 @@ class Context:
     stream: StreamHub
     recorder: Recorder
     cam: CameraManager
+    nav: NavViz
     controller_reachable: bool | None = None

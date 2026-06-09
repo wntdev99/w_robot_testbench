@@ -26,12 +26,13 @@ from fastapi.staticfiles import StaticFiles
 from .config import load_config
 from .context import Context
 from .camera import CameraManager
+from .navviz import NavViz
 from .procman.orchestrator import Orchestrator
 from .recorder import Recorder
 from .ros.stream import StreamHub
 from .ros_bridge import RosBridge
 from .ws_manager import WsManager
-from .api import camera, emergency, profiles, recordings, snapshots, system, topics, ws as ws_api
+from .api import camera, emergency, nav, profiles, recordings, snapshots, system, topics, ws as ws_api
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -82,7 +83,9 @@ async def lifespan(app: FastAPI):
     stream = StreamHub(ros, ws, float(cfg.streaming.get("default_rate_hz", 20)))
     recorder = Recorder(ros)
     cam = CameraManager(ros)
-    app.state.ctx = Context(cfg=cfg, ros=ros, ws=ws, orch=orch, stream=stream, recorder=recorder, cam=cam)
+    navviz = NavViz(ros)
+    app.state.ctx = Context(cfg=cfg, ros=ros, ws=ws, orch=orch, stream=stream,
+                            recorder=recorder, cam=cam, nav=navviz)
 
     tasks = [asyncio.create_task(_monitor_loop(app)),
              asyncio.create_task(_liveness_loop(app))]
@@ -112,7 +115,7 @@ def build_app() -> FastAPI:
         allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?",
         allow_methods=["*"], allow_headers=["*"], allow_credentials=True,
     )
-    for r in (system.router, profiles.router, topics.router, emergency.router, snapshots.router, recordings.router, camera.router, ws_api.router):
+    for r in (system.router, profiles.router, topics.router, emergency.router, snapshots.router, recordings.router, camera.router, nav.router, ws_api.router):
         app.include_router(r)
 
     @app.get("/api/health")

@@ -6,6 +6,8 @@ export const recordingDownloadUrl = (file: string) =>
 export const cameraStreamUrl = (topic: string) =>
   `${apiBase()}/api/camera/stream?topic=${encodeURIComponent(topic)}`;
 
+export const navMapUrl = () => `${apiBase()}/api/nav/map.png`;
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(apiBase() + path, {
     headers: { "Content-Type": "application/json" },
@@ -41,6 +43,8 @@ export const api = {
   recActive: () => req<{ id: string; name: string; active: boolean; rows: number; elapsed_s: number }[]>("/api/recordings/active"),
   recordings: () => req<{ file: string; size: number; rows: number | null; name: string | null }[]>("/api/recordings"),
   cameraTopics: () => req<{ available: boolean; topics: { topic: string; type: string; compressed: boolean }[] }>("/api/camera/topics"),
+  navMeta: () => req<{ available: boolean; has_map: boolean; resolution?: number; width?: number; height?: number; origin?: { x: number; y: number } }>("/api/nav/map/meta"),
+  navOverlay: () => req<{ pose: { x: number; y: number; yaw: number } | null; footprint: number[][]; scan: number[][] }>("/api/nav/overlay"),
   topics: (includeHidden = false) =>
     req<{ topic: string; types: string[]; publishers: number; subscribers: number; plottable: boolean }[]>(
       `/api/topics?include_hidden=${includeHidden}`,

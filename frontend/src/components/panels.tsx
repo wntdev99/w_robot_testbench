@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { api, recordingDownloadUrl, cameraStreamUrl } from "@/lib/api";
+import { api, recordingDownloadUrl, cameraStreamUrl, navMapUrl } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { Card } from "@/components/Card";
 import { PlotPanel, PlotSample } from "@/components/PlotPanel";
 import { cn } from "@/lib/cn";
 
-export type PanelType = "plot" | "controllers" | "diagnostics" | "command" | "launch" | "teleop" | "recorder" | "camera";
+export type PanelType = "plot" | "controllers" | "diagnostics" | "command" | "launch" | "teleop" | "recorder" | "camera" | "nav";
 export type PlotSource = "topic" | "system";
 export type ViewMode = "graph" | "table";
 export type Panel = {
@@ -485,6 +485,127 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
         ))}
       </div>
       {msg && <div className="mt-2 break-all text-xs text-ink-faint">{msg}</div>}
+    </Shell>
+  );
+}
+
+// ── 네비게이션 위젯 (RViz풍 2D: map + scan + footprint + pose, Canvas) ──
+type NavMeta = { has_map: boolean; resolution?: number; width?: number; height?: number; origin?: { x: number; y: number } };
+type NavView = { s: number; ox: number; oy: number };
+export function NavWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () => void; canRemove: boolean }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const metaRef = useRef<NavMeta | null>(null);
+  const overlayRef = useRef<any>({ pose: null, footprint: [], scan: [] });
+  const viewRef = useRef<NavView>({ s: 1, ox: 0, oy: 0 });
+  const fittedRef = useRef(false);
+  const [layers, setLayers] = useState({ scan: true, footprint: true, pose: true });
+  const layersRef = useRef(layers); layersRef.current = layers;
+  const [status, setStatus] = useState("로딩…");
+
+  const loadMap = () => {
+    api.navMeta().then((m) => {
+      if (!m.available) { setStatus("nav 의존성 없음(tf2/cv2)"); return; }
+      if (!m.has_map) { setStatus("맵 없음 (map_server 미기동)"); metaRef.current = null; return; }
+      metaRef.current = m; fittedRef.current = false; setStatus("");
+      const img = new Image();
+      img.onload = () => { imgRef.current = img; };
+      img.src = navMapUrl() + "?t=" + Date.now();
+    }).catch(() => setStatus("연결 오류"));
+  };
+
+  const fit = () => {
+    const cv = canvasRef.current, m = metaRef.current;
+    if (!cv || !m?.width) return;
+    const s = Math.min(cv.width / m.width!, cv.height / m.height!) * 0.95;
+    viewRef.current = { s, ox: (cv.width - m.width! * s) / 2, oy: (cv.height - m.height! * s) / 2 };
+    fittedRef.current = true;
+  };
+
+  const w2c = (wx: number, wy: number): [number, number] => {
+    const m = metaRef.current!, v = viewRef.current;
+    const px = (wx - m.origin!.x) / m.resolution!;
+    const py = m.height! - (wy - m.origin!.y) / m.resolution!;
+    return [v.ox + px * v.s, v.oy + py * v.s];
+  };
+
+  const draw = () => {
+    const cv = canvasRef.current; if (!cv) return;
+    const ctx = cv.getContext("2d"); if (!ctx) return;
+    ctx.fillStyle = "#dee2e6"; ctx.fillRect(0, 0, cv.width, cv.height);
+    const m = metaRef.current, img = imgRef.current, v = viewRef.current;
+    if (m?.width && img) {
+      if (!fittedRef.current) fit();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, v.ox, v.oy, m.width! * v.s, m.height! * v.s);
+      const ov = overlayRef.current, L = layersRef.current;
+      if (L.scan && ov.scan) { ctx.fillStyle = "#fa5252"; for (const [x, y] of ov.scan) { const [cx, cy] = w2c(x, y); ctx.fillRect(cx - 1, cy - 1, 2, 2); } }
+      if (L.footprint && ov.footprint?.length) {
+        ctx.strokeStyle = "#3182f6"; ctx.lineWidth = 2; ctx.beginPath();
+        ov.footprint.forEach(([x, y]: number[], i: number) => { const [cx, cy] = w2c(x, y); i ? ctx.lineTo(cx, cy) : ctx.moveTo(cx, cy); });
+        ctx.closePath(); ctx.stroke();
+      }
+      if (L.pose && ov.pose) {
+        const p = ov.pose, len = 0.45;
+        const [bx, by] = w2c(p.x, p.y);
+        const [hx, hy] = w2c(p.x + len * Math.cos(p.yaw), p.y + len * Math.sin(p.yaw));
+        ctx.strokeStyle = "#12b886"; ctx.fillStyle = "#12b886"; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(hx, hy); ctx.stroke();
+        ctx.beginPath(); ctx.arc(bx, by, 5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  };
+
+  useEffect(() => {
+    loadMap();
+    const cv = canvasRef.current, wrap = wrapRef.current;
+    const resize = () => { if (cv && wrap) { cv.width = wrap.clientWidth; cv.height = 340; fittedRef.current = false; } };
+    resize();
+    const ro = new ResizeObserver(resize); if (wrap) ro.observe(wrap);
+    const poll = setInterval(() => { api.navOverlay().then((o) => { overlayRef.current = o; }).catch(() => {}); }, 150);
+    let raf = 0; const loop = () => { draw(); raf = requestAnimationFrame(loop); }; loop();
+    return () => { ro.disconnect(); clearInterval(poll); cancelAnimationFrame(raf); };
+    // eslint-disable-next-line
+  }, []);
+
+  // pan/zoom
+  const drag = useRef<{ x: number; y: number } | null>(null);
+  const onDown = (e: React.PointerEvent) => { drag.current = { x: e.clientX, y: e.clientY }; (e.target as Element).setPointerCapture(e.pointerId); };
+  const onMove = (e: React.PointerEvent) => {
+    if (!drag.current) return;
+    const v = viewRef.current; v.ox += e.clientX - drag.current.x; v.oy += e.clientY - drag.current.y;
+    drag.current = { x: e.clientX, y: e.clientY };
+  };
+  const onUp = () => { drag.current = null; };
+  const onWheel = (e: React.WheelEvent) => {
+    const cv = canvasRef.current; if (!cv) return;
+    const rect = cv.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const v = viewRef.current; const f = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    v.ox = mx - (mx - v.ox) * f; v.oy = my - (my - v.oy) * f; v.s *= f;
+  };
+
+  const toggle = (k: keyof typeof layers) => setLayers((l) => ({ ...l, [k]: !l[k] }));
+
+  return (
+    <Shell title="네비게이션" onRemove={onRemove} canRemove={canRemove}
+      head={
+        <div className="flex items-center gap-2 text-xs">
+          {(["scan", "footprint", "pose"] as const).map((k) => (
+            <label key={k} className="flex items-center gap-1 text-ink-soft">
+              <input type="checkbox" checked={layers[k]} onChange={() => toggle(k)} /> {k}
+            </label>
+          ))}
+          <button onClick={() => { loadMap(); fittedRef.current = false; }} className="rounded bg-surface-muted px-2 py-0.5 hover:bg-surface-line">맵 새로고침</button>
+        </div>
+      }>
+      <div ref={wrapRef} className="relative w-full">
+        {status && <div className="absolute z-10 m-2 rounded bg-surface/80 px-2 py-1 text-xs text-ink-faint">{status}</div>}
+        <canvas ref={canvasRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onWheel={onWheel}
+          className="w-full cursor-move touch-none rounded-lg" style={{ height: 340 }} />
+      </div>
+      <div className="mt-1 text-[11px] text-ink-faint">드래그=이동 · 휠=확대 · 🟢로봇 🔵footprint 🔴scan (시각화만 — init pose/goal은 후속)</div>
     </Shell>
   );
 }
