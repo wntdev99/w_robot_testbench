@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench, Rocket, Gamepad2 } from "lucide-react";
+import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench, Rocket, Gamepad2, Save } from "lucide-react";
 import { api } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { cn } from "@/lib/cn";
@@ -95,6 +95,32 @@ export default function WorkspacePage() {
   };
   const remove = (id: string) => setPanels((ps) => ps.filter((p) => p.id !== id));
 
+  // ── 스냅샷 저장/복원 ──
+  const [snaps, setSnaps] = useState<{ name: string; updated: number }[]>([]);
+  const loadSnaps = () => api.snapshots().then(setSnaps).catch(() => {});
+  useEffect(() => { loadSnaps(); }, []);
+  const saveSnap = async () => {
+    const name = window.prompt("스냅샷 이름");
+    if (!name) return;
+    await api.saveSnapshot(name, { cols, panels }).catch(() => {});
+    loadSnaps();
+  };
+  const loadSnap = async (name: string) => {
+    if (!name) return;
+    try {
+      const doc = await api.loadSnapshot(name);
+      const d = doc.data || {};
+      if (typeof d.cols === "number") setCols(d.cols);
+      // id 재발급(중복 방지)
+      setPanels((d.panels || []).map((p: Panel) => ({ ...p, id: nextId() })));
+    } catch { /* */ }
+  };
+  const deleteSnap = async (name: string) => {
+    if (!name || !window.confirm(`스냅샷 '${name}' 삭제?`)) return;
+    await api.deleteSnapshot(name).catch(() => {});
+    loadSnaps();
+  };
+
   const visible = topics.filter((t) => (onlyPlottable ? t.plottable : true));
   const canRemove = panels.length > 1;
 
@@ -116,6 +142,25 @@ export default function WorkspacePage() {
           <button onClick={refresh} className="flex items-center gap-1.5 rounded-lg bg-surface-muted px-3 py-1.5 font-medium hover:bg-surface-line">
             <RefreshCw size={13} className={cn(loading && "animate-spin")} /> 새로고침
           </button>
+          {/* 스냅샷 */}
+          <div className="flex items-center gap-1 border-l border-surface-line pl-3">
+            <select value="" onChange={(e) => loadSnap(e.target.value)}
+              className="rounded-lg border border-surface-line bg-surface px-2 py-1.5">
+              <option value="">스냅샷 불러오기…</option>
+              {snaps.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+            </select>
+            <button onClick={saveSnap} title="현재 구성 저장"
+              className="flex items-center gap-1 rounded-lg bg-surface-muted px-2 py-1.5 font-medium hover:bg-surface-line">
+              <Save size={13} /> 저장
+            </button>
+            {snaps.length > 0 && (
+              <select value="" onChange={(e) => deleteSnap(e.target.value)} title="스냅샷 삭제"
+                className="rounded-lg border border-surface-line bg-surface px-1.5 py-1.5 text-ink-faint">
+                <option value="">🗑</option>
+                {snaps.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+              </select>
+            )}
+          </div>
           <div className="relative">
             <button onClick={() => setAddOpen((o) => !o)} className="flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-1.5 font-medium text-brand-700">
               <Plus size={14} /> 패널 추가

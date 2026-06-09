@@ -29,7 +29,7 @@ from .procman.orchestrator import Orchestrator
 from .ros.stream import StreamHub
 from .ros_bridge import RosBridge
 from .ws_manager import WsManager
-from .api import emergency, profiles, system, topics, ws as ws_api
+from .api import emergency, profiles, snapshots, system, topics, ws as ws_api
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -106,7 +106,7 @@ def build_app() -> FastAPI:
         allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?",
         allow_methods=["*"], allow_headers=["*"], allow_credentials=True,
     )
-    for r in (system.router, profiles.router, topics.router, emergency.router, ws_api.router):
+    for r in (system.router, profiles.router, topics.router, emergency.router, snapshots.router, ws_api.router):
         app.include_router(r)
 
     @app.get("/api/health")

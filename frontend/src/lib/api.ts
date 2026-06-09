@@ -23,6 +23,11 @@ export const api = {
   stopProcess: (id: string) => req<any>("/api/launch/stop", { method: "POST", body: JSON.stringify({ id }) }),
   runningLaunches: (machine: "server" | "controller" = "server") =>
     req<{ pid: number | null; package: string; file: string }[]>(`/api/processes/running?machine=${machine}`),
+  snapshots: () => req<{ name: string; updated: number }[]>("/api/snapshots"),
+  saveSnapshot: (name: string, data: any) =>
+    req<any>("/api/snapshots", { method: "POST", body: JSON.stringify({ name, data }) }),
+  loadSnapshot: (name: string) => req<{ name: string; data: any }>(`/api/snapshots/${encodeURIComponent(name)}`),
+  deleteSnapshot: (name: string) => req<any>(`/api/snapshots/${encodeURIComponent(name)}`, { method: "DELETE" }),
   topics: (includeHidden = false) =>
     req<{ topic: string; types: string[]; publishers: number; subscribers: number; plottable: boolean }[]>(
       `/api/topics?include_hidden=${includeHidden}`,
