@@ -608,8 +608,18 @@ export function NavWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () 
     resize();
     const ro = new ResizeObserver(resize); if (wrap) ro.observe(wrap);
     const poll = setInterval(() => { api.navOverlay().then((o) => { overlayRef.current = o; }).catch(() => {}); }, 150);
+    // 휠 줌: passive:false 네이티브 리스너로 등록해 preventDefault 가 먹게(페이지 스크롤 방지)
+    const onWheelNative = (e: WheelEvent) => {
+      e.preventDefault();
+      if (!cv) return;
+      const rect = cv.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const v = viewRef.current; const f = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      v.ox = mx - (mx - v.ox) * f; v.oy = my - (my - v.oy) * f; v.s *= f;
+    };
+    cv?.addEventListener("wheel", onWheelNative, { passive: false });
     let raf = 0; const loop = () => { draw(); raf = requestAnimationFrame(loop); }; loop();
-    return () => { ro.disconnect(); clearInterval(poll); cancelAnimationFrame(raf); };
+    return () => { ro.disconnect(); clearInterval(poll); cancelAnimationFrame(raf); cv?.removeEventListener("wheel", onWheelNative); };
     // eslint-disable-next-line
   }, []);
 
@@ -646,13 +656,6 @@ export function NavWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () 
     }
     drag.current = null;
   };
-  const onWheel = (e: React.WheelEvent) => {
-    const cv = canvasRef.current; if (!cv) return;
-    const rect = cv.getBoundingClientRect();
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-    const v = viewRef.current; const f = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-    v.ox = mx - (mx - v.ox) * f; v.oy = my - (my - v.oy) * f; v.s *= f;
-  };
 
   const toggle = (k: keyof typeof layers) => setLayers((l) => ({ ...l, [k]: !l[k] }));
 
@@ -675,7 +678,7 @@ export function NavWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () 
       }>
       <div ref={wrapRef} className="relative w-full">
         {status && <div className="absolute z-10 m-2 rounded bg-surface/80 px-2 py-1 text-xs text-ink-faint">{status}</div>}
-        <canvas ref={canvasRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onWheel={onWheel}
+        <canvas ref={canvasRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}
           className={cn("w-full touch-none rounded-lg", mode ? "cursor-crosshair" : "cursor-move")} style={{ height: 340 }} />
       </div>
       <div className="mt-1 flex items-center justify-between text-[11px] text-ink-faint">

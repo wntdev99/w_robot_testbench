@@ -14,3 +14,4 @@ frontend/next-env.d.ts
 data/
 recordings/
 *.log
+config/snapshots/
