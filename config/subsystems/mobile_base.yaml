@@ -1,0 +1,50 @@
+# 모바일 베이스 서브시스템 manifest — 2026-06-09 실측 기반 (docs/measured-interfaces.md)
+# 현재 로봇에 실재하는 유일한 서브시스템. 도어/카메라/암 등은 추후 동일 형식 파일 추가로 편입.
+# ⚠ 주석 = 로봇 라이브 기동 후 런타임 확인 필요 항목.
+subsystem:
+  id: mobile_base
+  label: "모바일 베이스 (스워브)"
+  category: motion
+  # 이 서브시스템 운용에 필요한 런치 묶음 (config/profiles/ 참조)
+  launch_profiles: [_autostart]        # robot_urdf(202) + controller(201 SSH) 포함
+
+  # ── 명령/제어 (역량 A·B) → L4 친화 폼/버튼 ──
+  controls:
+    - id: cmd_vel
+      label: "주행 명령 (cmd_vel)"
+      kind: topic
+      name: /swerve_controller/cmd_vel
+      type: geometry_msgs/Twist
+      ui: joystick            # 가상 조이스틱/슬라이더 위젯
+    - id: switch_controller
+      label: "컨트롤러 활성/비활성"
+      kind: service
+      name: /controller_manager/switch_controller
+      type: controller_manager_msgs/srv/SwitchController
+      options: [joint_state_broadcaster, swerve_controller]
+    # ⚠ 0점/토크/중력보상 등 직접 모터제어 모드는 라이브 확인 후 추가 (역량 B)
+
+  # ── 텔레메트리 (역량 C·F·J) → L3 플롯 / L6 기록 ──
+  telemetry:
+    # joint_states: 조향 4 + 구동 2
+    - { source: topic, topic: /joint_states, type: sensor_msgs/JointState,
+        fields: [position, velocity, effort], plot: true,
+        joints: [steering_LH, steering_RH, steering_LT, steering_RT, wheel_LH, wheel_RT] }
+    - { source: topic, topic: /swerve_controller/odom, type: nav_msgs/Odometry, plot: true }
+    - { source: topic, topic: /imu, type: sensor_msgs/Imu, plot: true }          # ⚠ 토픽명
+    # 모터 진단 = /diagnostics DiagnosticArray, hardware_id "can2:<id>" 의 values 키
+    - { source: diagnostic, hardware_id: "can2:11", field: temperature_C, label: "조향 FL 온도", unit: "℃", plot: true }
+    - { source: diagnostic, hardware_id: "can2:12", field: temperature_C, label: "조향 FR 온도", unit: "℃", plot: true }
+    - { source: diagnostic, hardware_id: "can2:13", field: temperature_C, label: "조향 RL 온도", unit: "℃", plot: true }
+    - { source: diagnostic, hardware_id: "can2:14", field: temperature_C, label: "조향 RR 온도", unit: "℃", plot: true }
+    - { source: diagnostic, hardware_id: "can2:11", field: current_A, label: "조향 FL 전류", unit: "A", plot: true }
+    - { source: diagnostic, hardware_id: "can2:11", field: effort_Nm,  label: "조향 FL 토크", unit: "Nm", plot: true }
+    # ⚠ 나머지 모터 current_A/effort_Nm, ZLAC 구동휠/카운터 키는 라이브 확인 후 확장 (역량 J)
+
+  # ── 진단 카운터 (역량 J) ──
+  counters:
+    - { source: diagnostic, producer: zltech, key: can_disconnect, label: "CAN 끊김 횟수" }   # ⚠ 정확 키
+
+  # ── 안전 훅 (역량 L) — 모바일 베이스는 현재 물리 범퍼 부재, E-stop만 ──
+  safety:
+    estop_action: { stop_cmd_vel: /swerve_controller/cmd_vel, deactivate_controllers: [swerve_controller] }

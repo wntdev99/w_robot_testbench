@@ -1,0 +1,30 @@
+# 서버 기동 시 항상 순차 기동되는 필수 인프라 (DESIGN.md §2.3 / §6.2)
+# persistent:true → 다른 프로파일 기동 시에도 종료되지 않음.
+profile:
+  id: _autostart
+  label: "필수 인프라"
+  persistent: true
+  processes:
+    - id: zenoh_router
+      machine: server
+      kind: zenoh                 # zenoh 전용 핸들러
+      command: "ros2 run rmw_zenoh_cpp rmw_zenohd"
+      skip_if_running: true       # 이미 떠 있으면 기동 생략
+    - id: robot_urdf
+      machine: server
+      kind: launch
+      command: "ros2 launch w_type_mm robot.launch.py"
+      depends_on: [zenoh_router]
+      healthcheck:
+        type: topic
+        topic: /robot_description
+        timeout_s: 15
+    - id: controller
+      machine: controller         # 201 SSH
+      kind: launch
+      command: "ros2 launch w_type_mm control.launch.py"
+      depends_on: [robot_urdf]
+      healthcheck:
+        type: service
+        service: /controller_manager/list_controllers
+        timeout_s: 25

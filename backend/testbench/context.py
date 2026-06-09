@@ -1,0 +1,20 @@
+"""앱 공유 상태 — 라우터가 request.app.state.ctx 로 접근."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from .config import Config
+from .procman.orchestrator import Orchestrator
+from .ros_bridge import RosBridge
+from .ros.stream import StreamHub
+from .ws_manager import WsManager
+
+
+@dataclass
+class Context:
+    cfg: Config
+    ros: RosBridge
+    ws: WsManager
+    orch: Orchestrator
+    stream: StreamHub
+    controller_reachable: bool | None = None

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "w-robot-testbench"
+version = "0.1.0"
+description = "웹 기반 ROS2 로봇 테스트벤치 백엔드 (FastAPI + rclpy)"
+requires-python = ">=3.10"
+# rclpy / rosidl_runtime_py 는 ROS2(apt)에서 제공되므로 pip 의존성에 넣지 않는다.
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pyyaml>=6.0",
+    "psutil>=5.9",
+    "asyncssh>=2.14",
+    "pydantic>=2.6",
+]
+
+[project.scripts]
+testbench = "testbench.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["testbench*"]
