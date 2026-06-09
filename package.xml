@@ -7,7 +7,7 @@
   <maintainer email="jeongmin.choi@wattrobotics.ai">jeongmin.choi</maintainer>
   <license>Apache-2.0</license>
 
-  <!-- 의존성 SSOT — 새 머신: `rosdep install --from-paths src --ignore-src -y` 한 줄로 자동 설치.
+  <!-- 의존성 SSOT. 새 머신은 'rosdep install' 한 줄로 ROS+pip 의존성을 자동 설치.
        (2026-06-09 202 rosdep DB 실측: 아래 키 전부 resolve 확인) -->
   <exec_depend>rclpy</exec_depend>
   <exec_depend>python3-fastapi</exec_depend>
