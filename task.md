@@ -25,7 +25,9 @@
 16. **프로세스 기동·종료 검증**(reconciler 심장) — 로컬 단일/그룹(PGID 트리)·원격 기동/지속(setsid)/PID종료 전부 ✅. 구현 지침 도출: setsid 기동 + PID/PGID 종료, `pkill -f` 금지(오살 실측)
 17. **Clean-Slate + baseline 기동 end-to-end 실증**(백엔드 mock) — 실가동 런치 전부 종료(202·201=0) → zenoh·robot·control 순차 기동+healthcheck 전부 ✅ → baseline 노드만 복구. 스크립트: `scripts/bootgate_test_{202,201}.sh`
 18. 검증 종료 — 테스트 baseline 전부 종료(202 노드 0, 202·201 ROS proc 0, 로봇 정리). 검증 커밋: `ab7b791`(4대가정)·`d150268`(프로세스)·`89563b4`(부트게이트)
-19. **P0 스캐폴딩 완료** (`fa50f9c`) — 백엔드(FastAPI+rclpy 골격, bt_gui 패턴 계승, py_compile ✅) + 프론트(Next.js14+TS+Tailwind 셸, build ✅). boot_gate/api/ws_manager/config + 셸(Sidebar·StatusPulse·EmergencyStopBar)·디자인토큰·빈 라우트 5. **백엔드 실제 기동은 202 pip 설치 후**
+19. **P0 스캐폴딩 완료** (`fa50f9c`) — 백엔드(FastAPI+rclpy 골격, bt_gui 패턴 계승, py_compile ✅) + 프론트(Next.js14+TS+Tailwind 셸, build ✅). boot_gate/api/ws_manager/config + 셸(Sidebar·StatusPulse·EmergencyStopBar)·디자인토큰·빈 라우트 5
+20. **의존성 자동화(rosdep)** (`98b0255`) — bt_gui 맹목계승 대신 리서치 후 rosdep 채택. `package.xml`=SSOT, ament_python(setup.py). 새 머신=`rosdep install` 한 줄
+21. **P0 백엔드 202 실증** (`0d2f629`) — rosdep+apt 설치 ✅ → `colcon build` ✅ → `ros2 run w_robot_testbench testbench` 기동 ✅ → API 3종 응답, `baseline.yaml` 3개 로드, **PREBOOT_SCAN이 24개 ROS(202 풀스택+201 control) 정확 감지**. 버그 수정: setup.cfg(ros2 run 인식)·config 경로(ament share). fastapi 0.101 호환 OK
 
 ---
 
@@ -48,6 +50,7 @@
 - [ ] **P5 전장부+진단+카메라** — BMS/Elyx 위젯·diagnostics·CAN 진단 / MJPEG/WebRTC·fps·USB허브
 
 ### 설계 잔여 (부속 D §8)
+- [ ] **boot_gate self/owned 제외** — PREBOOT_SCAN이 자기 백엔드(`ros2 run testbench`)+스캔 셸을 포함(202 실증에서 확인). P3 owned_registry(자기 기동 PID 추적)로 해결
 - [ ] 난입(foreign) 판별 패턴 — launch 자식 프로세스 트리 추적
 - [ ] healthcheck ↔ preflight 폴러 통합
 - [ ] 발행 위젯 메시지 type 해석(introspection) 구현 방식
