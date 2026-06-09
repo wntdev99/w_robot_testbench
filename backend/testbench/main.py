@@ -25,12 +25,14 @@ from rclpy.executors import SingleThreadedExecutor
 from testbench.api.baseline import router as baseline_router
 from testbench.api.boot import router as boot_router
 from testbench.api.emergency import router as emergency_router
+from testbench.api.projects import router as projects_router
 from testbench.api.system import router as system_router
 from testbench.api.ws import router as ws_router
 from testbench.config import Config
 from testbench.emergency import Emergency
 from testbench.procman.boot_gate import BootGate
 from testbench.procman.process_manager import ProcessManager
+from testbench.projects.store import ProjectStore
 from testbench.ros_bridge import RosBridge
 from testbench.ws_manager import WsManager
 
@@ -60,10 +62,12 @@ def build_app(bridge, ws_manager, config, boot_gate, boot_scan, emergency, proce
     app.state.boot_scan = boot_scan
     app.state.emergency = emergency
     app.state.process_manager = process_manager
+    app.state.project_store = ProjectStore(config)
 
     app.include_router(system_router)
     app.include_router(boot_router)
     app.include_router(baseline_router)
+    app.include_router(projects_router)
     app.include_router(emergency_router)
     app.include_router(ws_router)
 

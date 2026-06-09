@@ -44,35 +44,46 @@ async def _wait_healthcheck(hc: dict, bridge, timeout_s: float) -> bool:
     return check_healthcheck(hc, bridge)
 
 
-async def baseline_up(pm, bridge, ws, baseline_cfg: list[dict]) -> list[dict]:
-    """config.baseline 순차 기동. 실패(healthcheck timeout) 시 중단."""
+async def run_processes(pm, bridge, ws, items: list[dict],
+                        provenance: str = "baseline",
+                        event: str = "baseline_progress") -> list[dict]:
+    """프로세스 리스트 순차 기동(skip_if_running·depends_on 순서·healthcheck).
+
+    baseline 과 project.processes 가 공유 — provenance 로 소유권 구분(부속 D §5).
+    실패(healthcheck timeout) 시 중단.
+    """
     results: list[dict] = []
-    for item in baseline_cfg:
+    for item in items:
         bid = item["id"]
         machine = item.get("machine", "server")
         hc = item.get("healthcheck", {})
         timeout_s = float(hc.get("timeout_s", 20))
 
-        # idempotent: 이미 떠 있으면 skip
         if item.get("skip_if_running") and check_healthcheck(hc, bridge):
             results.append({"id": bid, "status": "skipped"})
-            await ws.broadcast("baseline_progress", {"id": bid, "status": "skipped"})
+            await ws.broadcast(event, {"id": bid, "status": "skipped"})
             continue
 
-        # 기동 (local=server / remote=controller SSH)
         persistent = bool(item.get("persistent", False))
         if machine == "server":
-            pm.spawn_local(bid, item["command"], persistent=persistent)
+            pm.spawn_local(bid, item["command"], provenance=provenance, persistent=persistent)
         else:
-            pm.spawn_remote(bid, item["command"], machine, persistent=persistent)
+            pm.spawn_remote(bid, item["command"], machine,
+                            provenance=provenance, persistent=persistent)
 
         ok = await _wait_healthcheck(hc, bridge, timeout_s)
         status = "ok" if ok else "timeout"
         results.append({"id": bid, "status": status})
-        await ws.broadcast("baseline_progress", {"id": bid, "status": status})
+        await ws.broadcast(event, {"id": bid, "status": status})
         if not ok:
-            logger.warning("baseline '%s' healthcheck timeout → 중단", bid)
+            logger.warning("'%s' healthcheck timeout → 중단", bid)
             break
+    return results
+
+
+async def baseline_up(pm, bridge, ws, baseline_cfg: list[dict]) -> list[dict]:
+    """동적 baseline 순차 기동 (provenance=baseline)."""
+    results = await run_processes(pm, bridge, ws, baseline_cfg, "baseline", "baseline_progress")
     await ws.broadcast("baseline_done", {"results": results})
     return results
 

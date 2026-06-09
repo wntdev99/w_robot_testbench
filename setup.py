@@ -4,6 +4,8 @@
 의존성은 package.xml(rosdep)이 SSOT. 여기선 패키지/엔트리포인트만.
 모듈 소스는 backend/ 아래 (package_dir로 루트 매핑).
 """
+import glob
+
 from setuptools import find_packages, setup
 
 PACKAGE_NAME = "w_robot_testbench"
@@ -18,6 +20,8 @@ setup(
         (f"share/{PACKAGE_NAME}", ["package.xml"]),
         # config 는 런타임 읽기 — share 설치 (TODO: config.py 경로를 share 참조로 보강)
         (f"share/{PACKAGE_NAME}/config", ["config/testbench.yaml", "config/baseline.yaml"]),
+        (f"share/{PACKAGE_NAME}/config/projects/builtin",
+         glob.glob("config/projects/builtin/*.yaml")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,

@@ -1,0 +1,53 @@
+# builtin 텔레옵 프로젝트 (DESIGN v0.3 §4.2 / 부속 D) — P1 첫 builtin·튜토리얼.
+# "텔레옵도 프로젝트로 표현"의 구현체. baseline(robot+control) 위에 teleop 런치 추가.
+# 인터페이스는 2026-06-09 검증값 (cmd_vel=geometry_msgs/Twist, 모터=/diagnostics can2).
+test_project:
+  id: builtin_teleop
+  name: "텔레옵 (튜토리얼)"
+  description: "조이스틱 주행 + joint_states·모터 온도/전류 모니터. 복제해 나만의 프로젝트 시작."
+  origin: builtin
+  cloned_from: null
+
+  layout:
+    grid: { cols: 12, row_h: 40 }
+    widgets:
+      - id: w_cmdvel
+        kind: control.topic_pub
+        title: "cmd_vel (수동 Twist)"
+        pos: { x: 0, y: 0, w: 4, h: 5 }
+        name: /swerve_controller/cmd_vel
+        type: geometry_msgs/msg/Twist
+      - id: w_joints
+        kind: plot.topic
+        title: "joint_states"
+        pos: { x: 4, y: 0, w: 8, h: 5 }
+        topic: /joint_states           # fields는 런타임 introspect(박제 금지)
+      - id: w_motor
+        kind: diagnostics
+        title: "모터 온도/전류/토크"
+        pos: { x: 0, y: 5, w: 12, h: 5 }
+        topic: /diagnostics
+        hardware_id_filter: "can2"     # 검증: hardware_id=can2:<N>
+
+  processes:                            # baseline 외 추가분 (teleop 체인)
+    - id: teleop_joy
+      machine: server
+      kind: launch
+      command: "ros2 launch w_robot_teleoperation teleop_joy.launch.py"
+      healthcheck: { type: topic, topic: /joy, timeout_s: 15 }
+    - id: twist_mux
+      machine: server
+      kind: launch
+      depends_on: [teleop_joy]
+      command: "ros2 launch w_robot_teleoperation twist_mux.launch.py"
+      healthcheck: { type: node, node: /twist_mux, timeout_s: 15 }
+
+  resources:
+    derived: true                       # 위젯에서 자동 파생 + 아래 보강
+    require:
+      - { kind: topic, name: /joint_states }
+      - { kind: topic, name: /diagnostics }
+
+  policy: { exclusive: true, on_orphan: ask, cleanup_adhoc_on_stop: true }
+  runner: { mode: manual }
+  record: { topics: [/diagnostics], export: [csv], verdict: manual }
