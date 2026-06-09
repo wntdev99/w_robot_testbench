@@ -8,6 +8,7 @@ baseline:
     kind: run
     command: "ros2 run rmw_zenoh_cpp rmw_zenohd"
     skip_if_running: true
+    persistent: true              # 인프라 전제 — reconcile/down/kill 예외(부속 D §2.5.1)
     healthcheck: { type: process, match: rmw_zenohd }
 
   - id: robot_urdf

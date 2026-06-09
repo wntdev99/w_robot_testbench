@@ -111,9 +111,16 @@ class BootGate:
         subprocess.run(_ssh_base(user, host) + [cmd], capture_output=True, timeout=15)
 
     def resolve(self, action: str, scan: dict) -> dict:
-        """action: kill | cancel. cancel 시 호출측이 서버 기동을 거부."""
-        if action == "kill":
-            self.kill_local([p["pid"] for p in scan.get("server", [])])
-            self.kill_remote([p["pid"] for p in scan.get("controller", [])])
-            return {"action": "kill", "killed": True}
-        return {"action": "cancel", "killed": False}
+        """action: kill | cancel. cancel 시 호출측이 서버 기동을 거부.
+
+        zenoh(인프라 전제, 부속 D §2.5.1)는 보존 — 백엔드 bridge가 zenoh에
+        의존하므로 죽이면 introspect 먹통. ensure만 하고 reconcile 예외.
+        """
+        if action != "kill":
+            return {"action": "cancel", "killed": False}
+        zmatch = self.cfg.zenoh.get("check", {}).get("match", "rmw_zenohd")
+        server = [p["pid"] for p in scan.get("server", []) if zmatch not in p["cmd"]]
+        kept = [p["pid"] for p in scan.get("server", []) if zmatch in p["cmd"]]
+        self.kill_local(server)
+        self.kill_remote([p["pid"] for p in scan.get("controller", [])])
+        return {"action": "kill", "killed": True, "kept_zenoh_pids": kept}

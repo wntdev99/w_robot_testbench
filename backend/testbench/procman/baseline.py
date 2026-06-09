@@ -60,10 +60,11 @@ async def baseline_up(pm, bridge, ws, baseline_cfg: list[dict]) -> list[dict]:
             continue
 
         # 기동 (local=server / remote=controller SSH)
+        persistent = bool(item.get("persistent", False))
         if machine == "server":
-            pm.spawn_local(bid, item["command"])
+            pm.spawn_local(bid, item["command"], persistent=persistent)
         else:
-            pm.spawn_remote(bid, item["command"], machine)
+            pm.spawn_remote(bid, item["command"], machine, persistent=persistent)
 
         ok = await _wait_healthcheck(hc, bridge, timeout_s)
         status = "ok" if ok else "timeout"
@@ -77,9 +78,11 @@ async def baseline_up(pm, bridge, ws, baseline_cfg: list[dict]) -> list[dict]:
 
 
 async def baseline_down(pm, ws) -> dict:
-    """baseline provenance 프로세스 종료 (PID/PGID 기반)."""
-    ids = [op.id for op in pm.owned.values() if op.provenance == "baseline"]
+    """baseline 프로세스 종료 (PID/PGID 기반). persistent(zenoh 등 인프라 전제)는 보존."""
+    ids = [op.id for op in pm.owned.values()
+           if op.provenance == "baseline" and not op.persistent]
+    kept = [op.id for op in pm.owned.values() if op.persistent]
     for bid in ids:
         pm.kill(bid)
-    await ws.broadcast("baseline_done", {"down": ids})
-    return {"down": ids}
+    await ws.broadcast("baseline_done", {"down": ids, "kept": kept})
+    return {"down": ids, "kept_persistent": kept}

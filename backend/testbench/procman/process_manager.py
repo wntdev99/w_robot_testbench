@@ -30,6 +30,7 @@ class OwnedProcess:
     pid: int | None = None
     pgid: int | None = None
     provenance: str = "baseline"  # baseline | project | ad-hoc
+    persistent: bool = False      # zenoh 등 reconcile 예외(인프라 전제, 부속 D §2.5.1)
 
 
 class ProcessManager:
@@ -50,7 +51,8 @@ class ProcessManager:
         return (f"{setup}; " if setup else "") + f"exec {command}"
 
     # ── 기동 ──
-    def spawn_local(self, id: str, command: str, provenance: str = "baseline") -> OwnedProcess:
+    def spawn_local(self, id: str, command: str, provenance: str = "baseline",
+                    persistent: bool = False) -> OwnedProcess:
         setup = self._machine("server").get("setup", "")
         full = self._wrap(setup, command)
         proc = subprocess.Popen(
@@ -59,13 +61,14 @@ class ProcessManager:
             start_new_session=True,   # setsid 효과: 새 세션/PGID
         )
         op = OwnedProcess(id=id, machine="server", command=command,
-                          pid=proc.pid, pgid=proc.pid, provenance=provenance)
+                          pid=proc.pid, pgid=proc.pid, provenance=provenance,
+                          persistent=persistent)
         self.owned[id] = op
         logger.info("spawn_local %s pid=%d", id, proc.pid)
         return op
 
     def spawn_remote(self, id: str, command: str, machine_key: str = "controller",
-                     provenance: str = "baseline") -> OwnedProcess:
+                     provenance: str = "baseline", persistent: bool = False) -> OwnedProcess:
         m = self._machine(machine_key)
         inner = self._wrap(m.get("setup", ""), command)
         # setsid(세션 분리) + background, 원격 PID echo. inner는 shlex.quote 로 안전.
@@ -81,7 +84,7 @@ class ProcessManager:
         except Exception as e:
             logger.warning("spawn_remote %s 실패: %s", id, e)
         op = OwnedProcess(id=id, machine=machine_key, command=command,
-                          pid=pid, pgid=pid, provenance=provenance)
+                          pid=pid, pgid=pid, provenance=provenance, persistent=persistent)
         self.owned[id] = op
         logger.info("spawn_remote %s pid=%s", id, pid)
         return op
