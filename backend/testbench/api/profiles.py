@@ -39,6 +39,12 @@ async def launch_files(request: Request, machine: str = "server"):
     return await request.app.state.ctx.orch.list_launch_files(machine)
 
 
+@router.get("/processes/running")
+async def running_launches(request: Request, machine: str = "server"):
+    """실제 실행 중인 ros2 launch 프로세스 (외부 포함)."""
+    return await request.app.state.ctx.orch.list_running_launches(machine)
+
+
 class RunLaunchBody(BaseModel):
     machine: str = "server"
     package: str

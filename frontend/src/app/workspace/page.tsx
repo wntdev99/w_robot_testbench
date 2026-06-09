@@ -12,6 +12,42 @@ import {
 let _pid = 0;
 const nextId = () => `w${++_pid}`;
 
+// 실행 중 런치 바 (서버 202 + 컨트롤러 201) — 진입 시 1회 로드 + 수동 새로고침(SSH 스캔은 버튼으로)
+function RunningBar() {
+  const [server, setServer] = useState<{ package: string; file: string; pid: number | null }[]>([]);
+  const [ctrl, setCtrl] = useState<{ package: string; file: string; pid: number | null }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const load = async () => {
+    setLoading(true);
+    const [s, c] = await Promise.all([
+      api.runningLaunches("server").catch(() => []),
+      api.runningLaunches("controller").catch(() => []),
+    ]);
+    setServer(s); setCtrl(c); setLoading(false); setLoaded(true);
+  };
+  useEffect(() => { load(); }, []);
+  const chip = (m: string, l: any, i: number) => (
+    <span key={m + i} className="rounded-md border border-surface-line bg-surface-muted px-2 py-0.5 text-xs">
+      <b className="text-brand-700">{m}</b> {l.package}/{l.file}{l.pid ? <span className="text-ink-faint"> ·{l.pid}</span> : ""}
+    </span>
+  );
+  const none = loaded && server.length === 0 && ctrl.length === 0;
+  return (
+    <div className="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-surface-line bg-surface px-4 py-2 shadow-card">
+      <span className="text-xs font-semibold text-ink-faint">실행 중 런치</span>
+      <button onClick={load} disabled={loading}
+        className="flex items-center gap-1 rounded-md bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-soft hover:bg-surface-line disabled:opacity-50">
+        <RefreshCw size={12} className={cn(loading && "animate-spin")} /> {loading ? "확인 중…" : "파악"}
+      </button>
+      {!loaded && !loading && <span className="text-xs text-ink-faint">‘파악’을 눌러 확인</span>}
+      {none && <span className="text-xs text-ink-faint">실행 중 ros2 launch 없음</span>}
+      {server.map((l, i) => chip("202", l, i))}
+      {ctrl.map((l, i) => chip("201", l, i))}
+    </div>
+  );
+}
+
 const ADD_MENU: { type: PanelType; label: string; icon: any }[] = [
   { type: "plot", label: "플롯", icon: LineChart },
   { type: "teleop", label: "텔레옵", icon: Gamepad2 },
@@ -64,6 +100,7 @@ export default function WorkspacePage() {
 
   return (
     <div className="space-y-4">
+      <RunningBar />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">워크스페이스</h1>

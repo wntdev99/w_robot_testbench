@@ -21,6 +21,8 @@ export const api = {
   runLaunch: (machine: string, pkg: string, file: string, args = "") =>
     req<any>("/api/launch/run", { method: "POST", body: JSON.stringify({ machine, package: pkg, file, args }) }),
   stopProcess: (id: string) => req<any>("/api/launch/stop", { method: "POST", body: JSON.stringify({ id }) }),
+  runningLaunches: (machine: "server" | "controller" = "server") =>
+    req<{ pid: number | null; package: string; file: string }[]>(`/api/processes/running?machine=${machine}`),
   topics: (includeHidden = false) =>
     req<{ topic: string; types: string[]; publishers: number; subscribers: number; plottable: boolean }[]>(
       `/api/topics?include_hidden=${includeHidden}`,

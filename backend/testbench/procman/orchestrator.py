@@ -12,7 +12,7 @@ import time
 from ..config import Config, Profile
 from ..ros_bridge import RosBridge
 from ..ws_manager import WsManager
-from .discover import parse_remote_find, scan_local_launch_files
+from .discover import parse_remote_find, parse_remote_ps, scan_local_launch_files, scan_running_launches
 from .local import LocalRunner
 from .remote_ssh import RemoteRunner
 from .types import ProcRecord, ProcState
@@ -215,6 +215,14 @@ class Orchestrator:
                 f"find {ws}/install/*/share/*/launch -type f -name '*.launch.*' 2>/dev/null")
             return parse_remote_find(out)
         return scan_local_launch_files()
+
+    async def list_running_launches(self, machine: str = "server") -> list[dict]:
+        """실제 실행 중인 ros2 launch 프로세스 (테스트벤치 외부 포함)."""
+        if machine == "controller" and self._remote:
+            out = await self._remote.run_capture(
+                "ps -eo pid=,args= 2>/dev/null | grep 'ros2 launch' | grep -v grep")
+            return parse_remote_ps(out)
+        return scan_running_launches()
 
     # ── ad-hoc 런치 실행/종료 (프로파일과 무관한 단건) ──
     async def run_launch(self, machine: str, package: str, file: str, args: str = "") -> dict:
