@@ -12,6 +12,7 @@ import time
 from ..config import Config, Profile
 from ..ros_bridge import RosBridge
 from ..ws_manager import WsManager
+from .discover import parse_remote_find, scan_local_launch_files
 from .local import LocalRunner
 from .remote_ssh import RemoteRunner
 from .types import ProcRecord, ProcState
@@ -41,6 +42,7 @@ class Orchestrator:
         )
         self._records: dict[str, ProcRecord] = {}
         self._up_profiles: set[str] = set()
+        self._adhoc_seq = 0
         self._lock = asyncio.Lock()
 
     # ── 조회 ──
@@ -204,6 +206,54 @@ class Orchestrator:
                 "up": pid in self._up_profiles,
             })
         return out
+
+    # ── 런치 파일 런타임 발견 ──
+    async def list_launch_files(self, machine: str = "server") -> list[dict]:
+        if machine == "controller" and self._remote:
+            ws = self._cfg.controller.ws or "~/colcon_ws"
+            out = await self._remote.run_capture(
+                f"find {ws}/install/*/share/*/launch -type f -name '*.launch.*' 2>/dev/null")
+            return parse_remote_find(out)
+        return scan_local_launch_files()
+
+    # ── ad-hoc 런치 실행/종료 (프로파일과 무관한 단건) ──
+    async def run_launch(self, machine: str, package: str, file: str, args: str = "") -> dict:
+        cmd = f"ros2 launch {package} {file} {args}".strip()
+        self._adhoc_seq += 1
+        rid = f"adhoc:{self._adhoc_seq}"
+        rec = ProcRecord(id=rid, profile_id="adhoc", proc_id=f"{package}/{file}",
+                         machine=machine, kind="launch", command=cmd)
+        self._records[rid] = rec
+        rec.state = ProcState.STARTING
+        await self._broadcast()
+        try:
+            if machine == "controller":
+                if not self._remote:
+                    raise RuntimeError("컨트롤러 머신 미설정")
+                await self._remote.start(rid, cmd)
+            else:
+                rec.pid = await self._local.start(rid, cmd)
+            rec.state = ProcState.RUNNING
+            rec.started_at = time.time()
+        except Exception as exc:  # noqa: BLE001
+            rec.state = ProcState.FAILED
+            rec.message = str(exc)
+        await self._broadcast()
+        return rec.to_dict()
+
+    async def stop_process(self, rid: str) -> dict:
+        rec = self._records.get(rid)
+        if not rec:
+            return {"ok": False, "reason": "unknown id"}
+        rec.state = ProcState.STOPPING
+        await self._broadcast()
+        if rec.machine == "controller" and self._remote:
+            await self._remote.stop(rid)
+        elif rec.kind != "zenoh":
+            await self._local.stop(rid)
+        self._records.pop(rid, None)
+        await self._broadcast()
+        return {"ok": True, "id": rid}
 
     # ── 정리 (종료 시 owned 프로세스만) ──
     async def shutdown(self) -> None:

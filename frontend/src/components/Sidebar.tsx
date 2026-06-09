@@ -2,15 +2,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Cpu, Rocket, Gamepad2, LayoutGrid,
+  LayoutDashboard, LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const NAV = [
   { href: "/", label: "대시보드", icon: LayoutDashboard },
-  { href: "/system", label: "시스템", icon: Cpu },
-  { href: "/launch", label: "런치", icon: Rocket },
-  { href: "/teleop", label: "텔레옵", icon: Gamepad2 },
   { href: "/workspace", label: "워크스페이스", icon: LayoutGrid },
 ];
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api", tags=["profiles"])
 
@@ -30,3 +31,30 @@ async def profile_down(profile_id: str, request: Request):
         return await request.app.state.ctx.orch.profile_down(profile_id)
     except KeyError as e:
         raise HTTPException(404, str(e))
+
+
+@router.get("/launch/files")
+async def launch_files(request: Request, machine: str = "server"):
+    """런타임에 실행 가능한 ros2 launch 파일 목록 (설치된 패키지 스캔)."""
+    return await request.app.state.ctx.orch.list_launch_files(machine)
+
+
+class RunLaunchBody(BaseModel):
+    machine: str = "server"
+    package: str
+    file: str
+    args: str = ""
+
+
+@router.post("/launch/run")
+async def run_launch(body: RunLaunchBody, request: Request):
+    return await request.app.state.ctx.orch.run_launch(body.machine, body.package, body.file, body.args)
+
+
+class StopBody(BaseModel):
+    id: str
+
+
+@router.post("/launch/stop")
+async def stop_process(body: StopBody, request: Request):
+    return await request.app.state.ctx.orch.stop_process(body.id)

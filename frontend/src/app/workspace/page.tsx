@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench } from "lucide-react";
+import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench, Rocket, Gamepad2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { cn } from "@/lib/cn";
 import {
   Panel, PanelType, Topic,
-  PlotWidget, ControllersWidget, MotorsWidget, CommandWidget,
+  PlotWidget, ControllersWidget, DiagnosticsWidget, CommandWidget, LaunchWidget, TeleopWidget,
 } from "@/components/panels";
 
 let _pid = 0;
@@ -14,9 +14,11 @@ const nextId = () => `w${++_pid}`;
 
 const ADD_MENU: { type: PanelType; label: string; icon: any }[] = [
   { type: "plot", label: "플롯", icon: LineChart },
+  { type: "teleop", label: "텔레옵", icon: Gamepad2 },
   { type: "command", label: "명령", icon: Wrench },
+  { type: "launch", label: "런치", icon: Rocket },
   { type: "controllers", label: "컨트롤러", icon: Settings2 },
-  { type: "motors", label: "모터 진단", icon: Gauge },
+  { type: "diagnostics", label: "Diagnostics", icon: Gauge },
 ];
 
 export default function WorkspacePage() {
@@ -101,8 +103,10 @@ export default function WorkspacePage() {
             return <PlotWidget key={p.id} {...common} topics={visible} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} />;
           if (p.type === "command")
             return <CommandWidget key={p.id} {...common} topics={topics} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} />;
+          if (p.type === "launch") return <LaunchWidget key={p.id} {...common} />;
+          if (p.type === "teleop") return <TeleopWidget key={p.id} {...common} onChange={(patch) => update(p.id, patch)} />;
           if (p.type === "controllers") return <ControllersWidget key={p.id} {...common} />;
-          return <MotorsWidget key={p.id} {...common} />;
+          return <DiagnosticsWidget key={p.id} {...common} onChange={(patch) => update(p.id, patch)} />;
         })}
       </div>
     </div>

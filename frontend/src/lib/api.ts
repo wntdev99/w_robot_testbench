@@ -16,6 +16,11 @@ export const api = {
   processes: () => req<any[]>("/api/processes"),
   profileUp: (id: string) => req<any>(`/api/profiles/${id}/up`, { method: "POST" }),
   profileDown: (id: string) => req<any>(`/api/profiles/${id}/down`, { method: "POST" }),
+  launchFiles: (machine: "server" | "controller" = "server") =>
+    req<{ package: string; file: string; path: string }[]>(`/api/launch/files?machine=${machine}`),
+  runLaunch: (machine: string, pkg: string, file: string, args = "") =>
+    req<any>("/api/launch/run", { method: "POST", body: JSON.stringify({ machine, package: pkg, file, args }) }),
+  stopProcess: (id: string) => req<any>("/api/launch/stop", { method: "POST", body: JSON.stringify({ id }) }),
   topics: (includeHidden = false) =>
     req<{ topic: string; types: string[]; publishers: number; subscribers: number; plottable: boolean }[]>(
       `/api/topics?include_hidden=${includeHidden}`,

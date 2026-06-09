@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useTb } from "@/lib/store";
@@ -7,12 +7,14 @@ import { Card } from "@/components/Card";
 import { PlotPanel, PlotSample } from "@/components/PlotPanel";
 import { cn } from "@/lib/cn";
 
-export type PanelType = "plot" | "controllers" | "motors" | "command";
+export type PanelType = "plot" | "controllers" | "diagnostics" | "command" | "launch" | "teleop";
 export type PlotSource = "topic" | "system";
+export type ViewMode = "graph" | "table";
 export type Panel = {
   id: string;
   type: PanelType;
   title?: string;
+  view?: ViewMode;       // 표/그래프 (plot·diagnostics 패널)
   // plot
   source?: PlotSource;   // 기본 "topic"
   topic?: string;
@@ -68,6 +70,48 @@ function systemCategories(fields: Field[]) {
   return SYS_GROUPS
     .map((g) => ({ key: g.key, label: g.label, paths: fields.filter((f) => g.match(f.path)).map((f) => f.path) }))
     .filter((g) => g.paths.length > 0);
+}
+
+// 표/그래프 토글 (모듈 레벨 — 안정 식별자)
+function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode) => void }) {
+  return (
+    <div className="flex rounded-lg bg-surface-muted p-0.5 text-xs">
+      {(["graph", "table"] as ViewMode[]).map((v) => (
+        <button key={v} onClick={() => onChange(v)}
+          className={cn("rounded-md px-2 py-0.5", view === v ? "bg-surface text-ink shadow-card" : "text-ink-faint")}>
+          {v === "graph" ? "그래프" : "표"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const fmt = (v: number | null | undefined) =>
+  v == null ? "—" : Number.isInteger(v) ? String(v) : v.toFixed(3);
+
+// 라벨+최신값 표
+function ValueTable({ labels, vals, units }: { labels: string[]; vals: (number | null)[]; units?: (string | undefined)[] }) {
+  if (labels.length === 0) return <div className="py-6 text-center text-sm text-ink-faint">선택된 항목 없음</div>;
+  return (
+    <table className="w-full text-sm">
+      <tbody>
+        {labels.map((l, i) => (
+          <tr key={l} className="border-b border-surface-line">
+            <td className="py-1 text-ink-soft">{l}</td>
+            <td className="py-1 text-right font-mono tabular-nums">{fmt(vals[i])}{units?.[i] ? ` ${units[i]}` : ""}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// 뷰 렌더 (그래프 or 표)
+function DataView({ view, labels, latest, windowSec, height }: {
+  view: ViewMode; labels: string[]; latest: PlotSample | null; windowSec: number; height: number;
+}) {
+  if (view === "table") return <ValueTable labels={labels} vals={latest?.vals ?? labels.map(() => null)} />;
+  return <PlotPanel title="" seriesLabels={labels} latest={latest} windowSec={windowSec} height={height} />;
 }
 
 function Shell({ title, onRemove, canRemove, head, children }: {
@@ -148,11 +192,20 @@ export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemov
   }, [fields, chosen, sample]);
 
   const setSource = (s: PlotSource) => onChange({ source: s, topic: "", chosen: [], msgType: undefined, sysCat: undefined });
+  const view = panel.view ?? "graph";
+  const windowSec = source === "system" ? 120 : 30;
+  // 시스템 소스: 선택된 카테고리의 필드만 칩으로 (전체 나열 방지). 토픽 소스: 전체.
+  const chipFields = (() => {
+    if (source !== "system" || !panel.sysCat) return fields;
+    const paths = new Set(cats.find((c) => c.key === panel.sysCat)?.paths ?? []);
+    return fields.filter((f) => paths.has(f.path));
+  })();
 
   return (
     <Shell title="플롯" onRemove={onRemove} canRemove={canRemove}
       head={
         <div className="flex items-center gap-1.5">
+          <ViewToggle view={view} onChange={(v) => onChange({ view: v })} />
           {/* 소스 토글 */}
           <div className="flex rounded-lg bg-surface-muted p-0.5 text-xs">
             {(["topic", "system"] as PlotSource[]).map((s) => (
@@ -177,9 +230,9 @@ export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemov
           )}
         </div>
       }>
-      {fields.length > 0 && (
+      {chipFields.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-1.5">
-          {fields.map((f) => (
+          {chipFields.map((f) => (
             <button key={f.path} onClick={() => toggle(f.path)}
               className={cn("rounded-md border px-2 py-0.5 text-xs", chosen.has(f.path) ? "border-brand-500 bg-brand-50 text-brand-700" : "border-surface-line text-ink-soft")}>
               {f.path}{f.array ? "[]" : ""}
@@ -188,10 +241,10 @@ export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemov
         </div>
       )}
       {source === "system" ? (
-        labels.length > 0 ? <PlotPanel title="" seriesLabels={labels} latest={latest} windowSec={120} height={200} />
+        labels.length > 0 ? <DataView view={view} labels={labels} latest={latest} windowSec={windowSec} height={200} />
           : <div className="py-6 text-center text-sm text-ink-faint">{system ? "필드를 선택하세요" : "시스템 데이터 대기…"}</div>
       ) : panel.topic ? (
-        labels.length > 0 ? <PlotPanel title="" seriesLabels={labels} latest={latest} windowSec={30} height={200} />
+        labels.length > 0 ? <DataView view={view} labels={labels} latest={latest} windowSec={windowSec} height={200} />
           : fields.length > 0 ? <div className="py-6 text-center text-sm text-ink-faint">데이터 수신 대기…</div>
             : <div className="py-6 text-center text-sm text-warn">플롯 가능한 수치 필드 없음</div>
       ) : <div className="py-6 text-center text-sm text-ink-faint">토픽을 선택하세요</div>}
@@ -232,33 +285,249 @@ export function ControllersWidget({ panel, onRemove, canRemove }: { panel: Panel
   );
 }
 
-// ── 모터 진단 위젯 ──
-const MOTORS = [
-  { id: "can2:11", label: "조향 FL" }, { id: "can2:12", label: "조향 FR" },
-  { id: "can2:13", label: "조향 RL" }, { id: "can2:14", label: "조향 RR" },
-];
-export function MotorsWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () => void; canRemove: boolean }) {
+// ── Diagnostics 위젯 (/diagnostics 데이터 소스, 표/그래프 선택) ──
+export function DiagnosticsWidget({ panel, onChange, onRemove, canRemove }: {
+  panel: Panel; onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
+}) {
   const diag = useTb((s) => s.diagnostics);
+  const view = panel.view ?? "table";
+  const chosen = useMemo(() => new Set(panel.chosen ?? []), [panel.chosen]);
+
+  // /diagnostics 의 수치 항목 목록: "<hardware_id> · <key>"
+  const fields = useMemo(() => {
+    const out: { path: string; hid: string; key: string }[] = [];
+    for (const [hid, f] of Object.entries(diag || {})) {
+      for (const [k, v] of Object.entries(f as any)) {
+        if (k.startsWith("_")) continue;
+        if (v != null && v !== "" && !isNaN(Number(v))) out.push({ path: `${hid} · ${k}`, hid, key: k });
+      }
+    }
+    return out;
+  }, [diag]);
+
+  // 기본 선택: 온도(temperature_C) 류, 없으면 상위 6개
+  useEffect(() => {
+    if (!(panel.chosen?.length) && fields.length) {
+      const temps = fields.filter((f) => f.key.toLowerCase().includes("temp")).map((f) => f.path);
+      onChange({ chosen: temps.length ? temps : fields.slice(0, 6).map((f) => f.path) });
+    }
+  }, [fields.length]); // eslint-disable-line
+
+  const toggle = (p: string) => { const n = new Set(chosen); n.has(p) ? n.delete(p) : n.add(p); onChange({ chosen: [...n] }); };
+
+  const selected = fields.filter((f) => chosen.has(f.path));
+  const labels = selected.map((f) => f.path);
+
+  // 그래프용 시계열 샘플: diagnostics 갱신 때마다 적재
+  const [sample, setSample] = useState<PlotSample | null>(null);
+  useEffect(() => {
+    const vals = selected.map((f) => { const v = diag[f.hid]?.[f.key]; return v != null && !isNaN(Number(v)) ? Number(v) : null; });
+    setSample({ t: Date.now() / 1000, vals });
+  }, [diag, panel.chosen]); // eslint-disable-line
+
   return (
-    <Shell title="모터 진단" onRemove={onRemove} canRemove={canRemove}>
-      <table className="w-full text-sm">
-        <thead><tr className="text-left text-xs text-ink-faint border-b border-surface-line">
-          <th className="py-1">모터</th><th>온도℃</th><th>전류A</th><th>토크Nm</th><th>fault</th></tr></thead>
-        <tbody>
-          {MOTORS.map((m) => {
-            const d = diag[m.id]; const t = d ? Number(d.temperature_C) : null;
-            return (
-              <tr key={m.id} className="border-b border-surface-line">
-                <td className="py-1 font-medium">{m.label}</td>
-                <td className={cn("tabular-nums", t != null && t >= 60 ? "text-danger" : "")}>{d?.temperature_C ?? "—"}</td>
-                <td className="tabular-nums">{d ? Number(d.current_A).toFixed(3) : "—"}</td>
-                <td className="tabular-nums">{d ? Number(d.effort_Nm).toFixed(3) : "—"}</td>
-                <td className="tabular-nums">{d?.fault_code ?? "—"}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <Shell title="Diagnostics" onRemove={onRemove} canRemove={canRemove}
+      head={<ViewToggle view={view} onChange={(v) => onChange({ view: v })} />}>
+      {fields.length === 0 ? (
+        <div className="py-6 text-center text-sm text-ink-faint">/diagnostics 데이터 없음 (드라이버 기동 필요)</div>
+      ) : (
+        <>
+          <div className="mb-3 flex flex-wrap gap-1.5 max-h-24 overflow-auto">
+            {fields.map((f) => (
+              <button key={f.path} onClick={() => toggle(f.path)}
+                className={cn("rounded-md border px-2 py-0.5 text-xs", chosen.has(f.path) ? "border-brand-500 bg-brand-50 text-brand-700" : "border-surface-line text-ink-soft")}>
+                {f.path}
+              </button>
+            ))}
+          </div>
+          {labels.length > 0
+            ? <DataView view={view} labels={labels} latest={sample} windowSec={120} height={200} />
+            : <div className="py-6 text-center text-sm text-ink-faint">항목을 선택하세요</div>}
+        </>
+      )}
+    </Shell>
+  );
+}
+
+// ── 런치 위젯 (런타임 발견 + 실행/종료 + 프로파일) ──
+const STATE_COLOR: Record<string, string> = {
+  running: "text-ok", external: "text-brand-600", starting: "text-warn",
+  stopping: "text-warn", failed: "text-danger",
+};
+export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () => void; canRemove: boolean }) {
+  const processes = useTb((s) => s.processes);
+  const [machine, setMachine] = useState<"server" | "controller">("server");
+  const [files, setFiles] = useState<{ package: string; file: string; path: string }[]>([]);
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [msg, setMsg] = useState("");
+
+  const loadFiles = async () => {
+    setLoading(true);
+    try { setFiles(await api.launchFiles(machine)); } catch { setFiles([]); } finally { setLoading(false); }
+  };
+  useEffect(() => { loadFiles(); /* eslint-disable-next-line */ }, [machine]);
+  const loadProfiles = () => api.profiles().then(setProfiles).catch(() => {});
+  useEffect(() => { loadProfiles(); }, []);
+
+  const run = async (f: { package: string; file: string }) => {
+    setMsg(`실행 요청: ${f.package} ${f.file}`);
+    try { await api.runLaunch(machine, f.package, f.file); } catch (e) { setMsg(String(e)); }
+  };
+  const stop = async (id: string) => { try { await api.stopProcess(id); } catch (e) { setMsg(String(e)); } };
+  const toggleProfile = async (p: any) => {
+    try { await (p.up ? api.profileDown(p.id) : api.profileUp(p.id)); loadProfiles(); } catch (e) { setMsg(String(e)); }
+  };
+
+  const filtered = files.filter((f) => (f.package + " " + f.file).toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <Shell title="런치" onRemove={onRemove} canRemove={canRemove}
+      head={
+        <div className="flex rounded-lg bg-surface-muted p-0.5 text-xs">
+          {(["server", "controller"] as const).map((m) => (
+            <button key={m} onClick={() => setMachine(m)}
+              className={cn("rounded-md px-2 py-0.5", machine === m ? "bg-surface text-ink shadow-card" : "text-ink-faint")}>
+              {m === "server" ? "서버(202)" : "컨트롤러(201)"}
+            </button>
+          ))}
+        </div>
+      }>
+      {/* 프로파일 묶음 */}
+      {profiles.filter((p) => !p.persistent).length > 0 && (
+        <div className="mb-3">
+          <div className="mb-1 text-[11px] font-medium text-ink-faint">프로파일(묶음)</div>
+          <div className="flex flex-wrap gap-1.5">
+            {profiles.filter((p) => !p.persistent).map((p) => (
+              <button key={p.id} onClick={() => toggleProfile(p)}
+                className={cn("rounded-md px-2 py-1 text-xs font-medium", p.up ? "bg-ok/10 text-ok" : "bg-brand-50 text-brand-700")}>
+                {p.up ? "■ " : "▶ "}{p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 발견된 런치 파일 */}
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`런치 파일 검색 (${filtered.length}/${files.length})`}
+        className="mb-2 w-full rounded-lg border border-surface-line px-2 py-1 text-xs" />
+      <div className="max-h-48 overflow-auto rounded-lg border border-surface-line divide-y divide-surface-line">
+        {loading && <div className="p-2 text-xs text-ink-faint">스캔 중…</div>}
+        {!loading && filtered.length === 0 && <div className="p-2 text-xs text-ink-faint">런치 파일 없음</div>}
+        {filtered.map((f) => (
+          <div key={f.package + "/" + f.file} className="flex items-center gap-2 px-2 py-1.5 text-xs">
+            <div className="min-w-0 flex-1 truncate"><span className="text-ink-faint">{f.package}</span> / {f.file}</div>
+            <button onClick={() => run(f)} className="shrink-0 rounded bg-brand-50 px-2 py-0.5 font-medium text-brand-700">실행</button>
+          </div>
+        ))}
+      </div>
+
+      {/* 실행 중 */}
+      <div className="mt-3 text-[11px] font-medium text-ink-faint">실행 중 프로세스</div>
+      <div className="space-y-1">
+        {processes.length === 0 && <div className="text-xs text-ink-faint">없음</div>}
+        {processes.map((r) => (
+          <div key={r.id} className="flex items-center gap-2 text-xs">
+            <span className={cn("w-14 shrink-0 font-medium", STATE_COLOR[r.state] ?? "text-ink-faint")}>{r.state}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-ink-soft">{r.proc_id} <span className="text-ink-faint">@{r.machine}</span></span>
+            {r.kind !== "zenoh" && <button onClick={() => stop(r.id)} className="shrink-0 rounded bg-danger/10 px-2 py-0.5 text-danger">종료</button>}
+          </div>
+        ))}
+      </div>
+      {msg && <div className="mt-2 break-all text-xs text-ink-faint">{msg}</div>}
+    </Shell>
+  );
+}
+
+// ── 텔레옵 위젯 (전방향 XY 패드 + 회전 슬라이더, 데드맨) ──
+export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
+  panel: Panel; onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
+}) {
+  const topic = panel.cmdTopic || "/swerve_controller/cmd_vel";
+  const [maxLin, setMaxLin] = useState(0.4);   // m/s
+  const [maxYaw, setMaxYaw] = useState(0.8);   // rad/s
+  const [knob, setKnob] = useState({ x: 0, y: 0 });  // 화면좌표 정규화 (-1..1), x=우+, y=하+
+  const [rot, setRot] = useState(0);                 // -1(좌)..1(우)
+  const [padActive, setPadActive] = useState(false);
+  const [rotActive, setRotActive] = useState(false);
+  const [pub, setPub] = useState({ x: 0, y: 0, z: 0 });
+  const padRef = useRef<HTMLDivElement>(null);
+  const valsRef = useRef({ x: 0, y: 0, z: 0 });
+
+  // REP-103: x 전진, y 좌측+, z CCW+. 패드 위(-y)=전진, 좌(-x)=+y. 슬라이더 좌(-)= 좌회전(+z).
+  const fwd = -knob.y, left = -knob.x;
+  useEffect(() => {
+    valsRef.current = { x: fwd * maxLin, y: left * maxLin, z: -rot * maxYaw };
+  }, [fwd, left, rot, maxLin, maxYaw]);
+
+  const send = (x: number, y: number, z: number) => {
+    setPub({ x, y, z });
+    api.publish(topic, "geometry_msgs/msg/Twist", { linear: { x, y, z: 0 }, angular: { x: 0, y: 0, z } }).catch(() => {});
+  };
+
+  const active = padActive || rotActive;
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => { const v = valsRef.current; send(v.x, v.y, v.z); }, 66);  // ~15Hz
+    return () => { clearInterval(id); send(0, 0, 0); };  // 떼면 즉시 정지
+    // eslint-disable-next-line
+  }, [active]);
+
+  const padMove = (e: React.PointerEvent) => {
+    const r = padRef.current!.getBoundingClientRect();
+    let dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
+    let dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+    const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; }
+    setKnob({ x: dx, y: dy });
+  };
+
+  return (
+    <Shell title="텔레옵" onRemove={onRemove} canRemove={canRemove}
+      head={<span className="font-mono text-[11px] text-ink-faint">x{pub.x.toFixed(2)} y{pub.y.toFixed(2)} z{pub.z.toFixed(2)}</span>}>
+      <div className="flex flex-col items-center gap-3">
+        {/* XY 평행이동 패드 */}
+        <div
+          ref={padRef}
+          onPointerDown={(e) => { (e.target as Element).setPointerCapture(e.pointerId); setPadActive(true); padMove(e); }}
+          onPointerMove={(e) => { if (padActive) padMove(e); }}
+          onPointerUp={() => { setPadActive(false); setKnob({ x: 0, y: 0 }); }}
+          onPointerCancel={() => { setPadActive(false); setKnob({ x: 0, y: 0 }); }}
+          className="relative h-44 w-44 touch-none select-none rounded-full border border-surface-line bg-surface-muted"
+        >
+          <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-surface-line" />
+          <div className="absolute top-1/2 left-0 w-full h-px -translate-y-1/2 bg-surface-line" />
+          <span className="absolute left-1/2 top-1 -translate-x-1/2 text-[10px] text-ink-faint">전진</span>
+          <span className="absolute left-1/2 bottom-1 -translate-x-1/2 text-[10px] text-ink-faint">후진</span>
+          <span className="absolute top-1/2 left-1 -translate-y-1/2 text-[10px] text-ink-faint">좌</span>
+          <span className="absolute top-1/2 right-1 -translate-y-1/2 text-[10px] text-ink-faint">우</span>
+          <div
+            className={cn("absolute h-10 w-10 rounded-full shadow-card -translate-x-1/2 -translate-y-1/2 transition-colors",
+              padActive ? "bg-brand-500" : "bg-brand-100")}
+            style={{ left: `${50 + knob.x * 42}%`, top: `${50 + knob.y * 42}%` }}
+          />
+        </div>
+
+        {/* 회전 슬라이더 (스프링 복귀) */}
+        <div className="w-full px-2">
+          <div className="mb-1 flex justify-between text-[10px] text-ink-faint"><span>↺ 좌회전</span><span>회전(z)</span><span>우회전 ↻</span></div>
+          <input type="range" min={-1} max={1} step={0.02} value={rot}
+            onPointerDown={() => setRotActive(true)}
+            onChange={(e) => setRot(Number(e.target.value))}
+            onPointerUp={() => { setRotActive(false); setRot(0); }}
+            onPointerCancel={() => { setRotActive(false); setRot(0); }}
+            className="w-full" />
+        </div>
+
+        {/* 속도 한계 + 대상 토픽 */}
+        <div className="grid w-full grid-cols-2 gap-2 text-xs">
+          <label className="flex items-center gap-1">최대 직진 <input type="number" step="0.1" value={maxLin} onChange={(e) => setMaxLin(Number(e.target.value))} className="w-16 rounded border border-surface-line px-1 py-0.5" /> m/s</label>
+          <label className="flex items-center gap-1">최대 회전 <input type="number" step="0.1" value={maxYaw} onChange={(e) => setMaxYaw(Number(e.target.value))} className="w-16 rounded border border-surface-line px-1 py-0.5" /> rad/s</label>
+        </div>
+        <input value={topic} onChange={(e) => onChange({ cmdTopic: e.target.value })}
+          className="w-full rounded-lg border border-surface-line px-2 py-1 text-xs" placeholder="/swerve_controller/cmd_vel" />
+        <div className="text-[11px] text-warn">⚠ 누르고 있는 동안만 전송(데드맨). 떼면 즉시 정지. 컨트롤러 active 필요.</div>
+      </div>
     </Shell>
   );
 }

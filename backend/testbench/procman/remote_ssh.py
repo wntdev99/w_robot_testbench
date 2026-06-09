@@ -57,6 +57,18 @@ class RemoteRunner:
         except Exception:  # noqa: BLE001
             return False
 
+    async def run_capture(self, command: str, timeout: float = 15.0) -> str:
+        """원격에서 명령 실행 후 stdout 반환 (발견/조회용)."""
+        if asyncssh is None:
+            return ""
+        try:
+            conn = await self._ensure_conn()
+            res = await asyncio.wait_for(conn.run(f"{self._setup}; {command}", check=False), timeout=timeout)
+            return res.stdout or ""
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("원격 캡처 실패: %s", exc)
+            return ""
+
     async def start(self, key: str, command: str) -> None:
         conn = await self._ensure_conn()
         # nohup + setsid 로 세션 분리 백그라운드 기동
