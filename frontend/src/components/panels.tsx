@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { api, recordingDownloadUrl } from "@/lib/api";
+import { api, recordingDownloadUrl, cameraStreamUrl } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { Card } from "@/components/Card";
 import { PlotPanel, PlotSample } from "@/components/PlotPanel";
 import { cn } from "@/lib/cn";
 
-export type PanelType = "plot" | "controllers" | "diagnostics" | "command" | "launch" | "teleop" | "recorder";
+export type PanelType = "plot" | "controllers" | "diagnostics" | "command" | "launch" | "teleop" | "recorder" | "camera";
 export type PlotSource = "topic" | "system";
 export type ViewMode = "graph" | "table";
 export type Panel = {
@@ -26,6 +26,8 @@ export type Panel = {
   diagCat?: string;                // 선택된 카테고리(hardware_id 또는 metric key)
   // command
   cmdTopic?: string;
+  // camera
+  camTopic?: string;
 };
 
 export type Topic = { topic: string; types: string[]; publishers: number; subscribers: number; plottable: boolean };
@@ -483,6 +485,45 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
         ))}
       </div>
       {msg && <div className="mt-2 break-all text-xs text-ink-faint">{msg}</div>}
+    </Shell>
+  );
+}
+
+// ── 카메라 위젯 (이미지 토픽 → MJPEG 뷰) ──
+export function CameraWidget({ panel, onChange, onRemove, canRemove }: {
+  panel: Panel; onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
+}) {
+  const [topics, setTopics] = useState<{ topic: string; type: string; compressed: boolean }[]>([]);
+  const [available, setAvailable] = useState(true);
+  const [err, setErr] = useState(false);
+  const topic = panel.camTopic || "";
+
+  const load = () => api.cameraTopics().then((r) => { setTopics(r.topics); setAvailable(r.available); }).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  return (
+    <Shell title="카메라" onRemove={onRemove} canRemove={canRemove}
+      head={
+        <select value={topic} onChange={(e) => { setErr(false); onChange({ camTopic: e.target.value }); }}
+          className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[220px]">
+          <option value="">이미지 토픽…</option>
+          {topics.map((t) => <option key={t.topic} value={t.topic}>{t.topic}{t.compressed ? " (압축)" : ""}</option>)}
+        </select>
+      }>
+      {!available ? (
+        <div className="py-8 text-center text-sm text-warn">서버에 cv2/cv_bridge 없음 — 카메라 변환 불가</div>
+      ) : !topic ? (
+        <div className="py-8 text-center text-sm text-ink-faint">
+          이미지 토픽을 선택하세요{topics.length === 0 ? " (발행 중인 이미지 토픽 없음)" : ""}
+        </div>
+      ) : err ? (
+        <div className="py-8 text-center text-sm text-danger">스트림 오류 — 토픽/발행 상태 확인</div>
+      ) : (
+        // MJPEG 스트림: key 로 토픽 변경 시 재연결, 언마운트 시 연결 종료
+        // eslint-disable-next-line @next/next/no-img-element
+        <img key={topic} src={cameraStreamUrl(topic)} alt={topic} onError={() => setErr(true)}
+          className="w-full rounded-lg bg-ink/5" />
+      )}
     </Shell>
   );
 }

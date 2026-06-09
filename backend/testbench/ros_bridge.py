@@ -86,6 +86,8 @@ class RosBridge(Node):
         self._diag_latest: dict[str, dict[str, Any]] = {}
         self._diag_cbs: dict[str, Callable[[dict], None]] = {}             # sid -> cb
         self._diag_sub = None
+        self._raw_subs: dict[str, Any] = {}                               # topic -> Subscription
+        self._raw_cbs: dict[str, dict[str, Callable[[Any], None]]] = {}    # topic -> {sid: cb}
         self._field_cache: dict[str, list[dict[str, Any]]] = {}   # type_str -> leaf fields
         self._goals: dict[str, tuple] = {}                        # goal_id -> (ActionClient, goal_handle)
         self._goal_seq = 0
@@ -242,6 +244,47 @@ class RosBridge(Node):
         if sub is not None:
             self.destroy_subscription(sub)
             logger.info("구독 해제: %s", topic)
+
+    # ── raw 구독 (이미지 등 — ordereddict 변환 없이 원본 msg 전달) ──
+    def subscribe_raw(self, topic: str, type_str: str | None, cb: Callable[[Any], None],
+                      sid: str = "default") -> bool:
+        self._raw_cbs.setdefault(topic, {})[sid] = cb
+        if topic in self._raw_subs:
+            return True
+        type_str = type_str or self.get_topic_type(topic)
+        if not type_str:
+            self._raw_cbs.get(topic, {}).pop(sid, None)
+            return False
+        try:
+            msg_cls = get_message(_normalize_type(type_str))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("raw 타입 로드 실패 %s: %s", type_str, exc)
+            return False
+
+        def _on(msg: Any, _topic: str = topic) -> None:
+            for c in list(self._raw_cbs.get(_topic, {}).values()):
+                try:
+                    c(msg)
+                except Exception:  # noqa: BLE001
+                    logger.exception("raw 콜백 오류 %s", _topic)
+
+        qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT,
+                         history=HistoryPolicy.KEEP_LAST)
+        self._raw_subs[topic] = self.create_subscription(msg_cls, topic, _on, qos)
+        logger.info("raw 구독 시작: %s (%s)", topic, type_str)
+        return True
+
+    def unsubscribe_raw(self, topic: str, sid: str = "default") -> None:
+        cbs = self._raw_cbs.get(topic)
+        if cbs:
+            cbs.pop(sid, None)
+            if cbs:
+                return
+            self._raw_cbs.pop(topic, None)
+        sub = self._raw_subs.pop(topic, None)
+        if sub is not None:
+            self.destroy_subscription(sub)
+            logger.info("raw 구독 해제: %s", topic)
 
     # ── diagnostics 상시 구독 (다중 콜백 sid) ──
     def set_diagnostics_callback(self, cb: Callable[[dict], None], sid: str = "default") -> None:

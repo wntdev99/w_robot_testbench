@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .camera import CameraManager
 from .config import Config
 from .procman.orchestrator import Orchestrator
 from .recorder import Recorder
@@ -19,4 +20,5 @@ class Context:
     orch: Orchestrator
     stream: StreamHub
     recorder: Recorder
+    cam: CameraManager
     controller_reachable: bool | None = None
