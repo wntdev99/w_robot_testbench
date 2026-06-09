@@ -62,3 +62,36 @@ async def system_status(request: Request) -> dict:
         "temp_c": _cpu_temp(),
         "node_count": len(nodes),
     })
+
+
+def _remote_stats(user: str, host: str) -> dict | None:
+    """201 stats — ROS2 토픽 미발행 시 SSH로 /proc 읽기 (DESIGN §12-2 fallback)."""
+    try:
+        r = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", f"{user}@{host}",
+             "cat /proc/loadavg; cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null"],
+            capture_output=True, text=True, timeout=8,
+        )
+        lines = r.stdout.splitlines()
+        load = lines[0].split()[0] if lines and lines[0] else None
+        temp = None
+        for ln in lines[1:]:
+            if ln.strip().isdigit():
+                temp = round(int(ln.strip()) / 1000, 1)
+                break
+        return {"loadavg": load, "temp_c": temp}
+    except Exception:
+        return None
+
+
+@router.get("/api/system/controller")
+async def controller_status(request: Request) -> dict:
+    """201 토폴로지 — 연결 상태 + stats (on-demand, system_status 폴링 부담 회피)."""
+    m = request.app.state.config.machines.get("controller", {})
+    host, user = m.get("host"), m.get("ssh_user")
+    reachable = _ping(host)
+    return ok({
+        "host": host,
+        "reachable": reachable,                       # ping = "단독/함께"
+        "stats": _remote_stats(user, host) if reachable else None,
+    })

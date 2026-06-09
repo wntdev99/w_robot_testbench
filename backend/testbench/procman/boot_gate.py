@@ -25,8 +25,9 @@ def _ssh_base(user: str, host: str) -> list[str]:
 
 
 class BootGate:
-    def __init__(self, config) -> None:
+    def __init__(self, config, process_manager=None) -> None:
         self.cfg = config
+        self.pm = process_manager   # owned_registry self-제외 (부속 D §5)
 
     @property
     def _pattern(self) -> str:
@@ -43,7 +44,11 @@ class BootGate:
         except Exception as e:
             logger.warning("local scan 실패: %s", e)
             return []
-        return self._parse(out, exclude_pid=os.getpid())
+        # self-제외: 백엔드 자신(getpid) + ros2 run wrapper(getppid) + owned 프로세스 트리
+        exclude = {os.getpid(), os.getppid()}
+        if self.pm is not None:
+            exclude |= self.pm.owned_local_pids()
+        return self._parse(out, exclude=exclude)
 
     def _scan_remote(self) -> list[dict]:
         ctrl = self.cfg.machines.get("controller", {})
@@ -61,14 +66,15 @@ class BootGate:
         return self._parse(out)
 
     @staticmethod
-    def _parse(out: str, exclude_pid: int | None = None) -> list[dict]:
+    def _parse(out: str, exclude: set[int] | None = None) -> list[dict]:
+        exclude = exclude or set()
         procs = []
         for line in out.strip().splitlines():
             parts = line.split(maxsplit=1)
             if len(parts) != 2 or not parts[0].isdigit():
                 continue
             pid = int(parts[0])
-            if exclude_pid and pid == exclude_pid:
+            if pid in exclude:
                 continue
             if "pgrep" in parts[1]:  # self-match 방지
                 continue
