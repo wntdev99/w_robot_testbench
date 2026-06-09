@@ -22,6 +22,7 @@
 13. 커밋 완료 (`e388a2f` DESIGN v0.3, 부속 D는 `05df77b`에 포함 검증)
 14. task.md 작성·커밋 (`d631ea4`)
 15. **실로봇 아키텍처 4대 가정 검증**(2026-06-09) — zenoh·SSH무인·프로세스식별·introspection + cmd_vel=Twist·diagnostics 전부 ✅. 202→201 SSH 키 배포. 기록: `docs/verification-2026-06-09.md` + `scripts/verify_assumptions.sh`
+16. **프로세스 기동·종료 검증**(reconciler 심장) — 로컬 단일/그룹(PGID 트리)·원격 기동/지속(setsid)/PID종료 전부 ✅. 구현 지침 도출: setsid 기동 + PID/PGID 종료, `pkill -f` 금지(오살 실측)
 
 ---
 
