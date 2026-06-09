@@ -1,0 +1,46 @@
+# w_robot_testbench 전역 설정 (DESIGN v0.3 §6.1)
+# 값은 2026-06-09 실측 검증 기반 (docs/verification-2026-06-09.md).
+
+server:
+  host: 0.0.0.0
+  port: 8080
+
+machines:
+  server:
+    host: 192.168.34.202
+    role: server
+    # 비대화형 SSH는 .bashrc 미로드 → 명시 source 필요 (검증됨)
+    setup: "source /opt/ros/jazzy/setup.bash; source ~/ros2_ws/install/setup.bash; export RMW_IMPLEMENTATION=rmw_zenoh_cpp"
+  controller:
+    host: 192.168.34.201
+    ssh_user: ubuntu
+    ws: ~/colcon_ws
+    # 201은 zenoh client로 202 라우터에 connect (검증됨)
+    setup: 'export LC_ALL=C; source /opt/ros/jazzy/setup.bash; source ~/colcon_ws/install/setup.bash; export RMW_IMPLEMENTATION=rmw_zenoh_cpp; export ZENOH_CONFIG_OVERRIDE=''mode="client";connect/endpoints=["tcp/192.168.34.202:7447"]'''
+
+zenoh:
+  router_cmd: "ros2 run rmw_zenoh_cpp rmw_zenohd"
+  router_endpoint: "tcp/192.168.34.202:7447"
+  check: { method: process, match: rmw_zenohd }
+
+# Clean-Slate 부팅 게이트 (DESIGN 부속 D §2.5 / 검증된 패턴)
+boot_gate:
+  scan_ros_procs: true
+  on_existing: ask          # ask | kill | cancel
+  # ROS 프로세스 식별 패턴 (부속 D §2.6, 검증3에서 확인). self-match 방지 위해 경로 기반.
+  ros_proc_patterns:
+    - "rmw_zenohd"
+    - "bin/ros2 launch"
+    - "bin/ros2 run"
+    - "/opt/ros/jazzy/lib"
+    - "ros2_ws/install"
+    - "_ros2_daemon"
+
+liveness:
+  controller_machine: { method: ping, host: 192.168.34.201, interval_s: 5 }
+
+# SSH: 202->201 무인 인증. 키 미배포 시 admin 부트스트랩 (비번 1회→copy-id→폐기, 영구저장 금지)
+ssh:
+  controller_host: 192.168.34.201
+  controller_user: ubuntu
+  key_path: ~/.ssh/id_ed25519

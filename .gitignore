@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.env.local
+
+# 런타임 산출물 (사용자 프로젝트/기록은 git 비추적, builtin/기록 .gitkeep만)
+config/projects/*.json
+config/records/*
+!config/records/.gitkeep
+
+# OS
+.DS_Store

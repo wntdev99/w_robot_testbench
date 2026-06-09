@@ -1,0 +1,24 @@
+# 동적 baseline (DESIGN v0.3 §6.2 / 부속 D §2.5.1)
+# 빈 집합([]) 허용 — 201 미사용 등. 관리자 페이지에서 수정.
+# 아래 3대상 + healthcheck 신호는 2026-06-09 end-to-end 실증됨 (Phase B 통과).
+
+baseline:
+  - id: zenoh
+    machine: server
+    kind: run
+    command: "ros2 run rmw_zenoh_cpp rmw_zenohd"
+    skip_if_running: true
+    healthcheck: { type: process, match: rmw_zenohd }
+
+  - id: robot_urdf
+    machine: server
+    kind: launch
+    command: "ros2 launch w_type_mm robot.launch.py"
+    healthcheck: { type: topic, topic: /robot_description, timeout_s: 25 }
+
+  - id: controller
+    machine: controller          # 201 SSH (setsid 기동, 세션 분리)
+    kind: launch
+    depends_on: [robot_urdf]
+    command: "ros2 launch w_type_mm control.launch.py ekf_enable:=true"
+    healthcheck: { type: node, node: /controller_manager, timeout_s: 30 }

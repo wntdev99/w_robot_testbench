@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 디자인 토큰 — Toss풍(깔끔한 중성 배경 + 파랑 accent) DESIGN v0.3 §8 */
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --border: #e5e8eb;
+  --text: #191f28;
+  --muted: #8b95a1;
+  --primary: #3182f6;
+  --ok: #00c471;
+  --warn: #ffb020;
+  --danger: #f04452;
+  --radius: 16px;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
