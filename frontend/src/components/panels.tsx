@@ -198,11 +198,16 @@ export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemov
   };
   const { labels, latest } = useMemo(() => {
     const lbls: string[] = []; const vals: (number | null)[] = [];
+    // JointState 등: top-level name[] 가 배열 인덱스와 1:1 → 인덱스 대신 이름 라벨
+    const nameArr: any = sample?.values?.name;
     for (const f of fields) {
       if (!chosen.has(f.path)) continue;
       const v = sample ? getPath(sample.values, f.path) : undefined;
-      if (f.array) (Array.isArray(v) ? v : []).forEach((x, i) => { lbls.push(`${f.path}[${i}]`); vals.push(num(x)); });
-      else { lbls.push(f.path); vals.push(num(v)); }
+      if (f.array) {
+        const arr = Array.isArray(v) ? v : [];
+        const useName = Array.isArray(nameArr) && nameArr.length === arr.length;
+        arr.forEach((x, i) => { lbls.push(`${f.path}[${useName ? nameArr[i] : i}]`); vals.push(num(x)); });
+      } else { lbls.push(f.path); vals.push(num(v)); }
     }
     return { labels: lbls, latest: sample && lbls.length ? ({ t: sample.ts, vals } as PlotSample) : null };
   }, [fields, chosen, sample]);
