@@ -14,6 +14,7 @@ baseline:
     machine: server
     kind: launch
     command: "ros2 launch w_type_mm robot.launch.py"
+    skip_if_running: true
     healthcheck: { type: topic, topic: /robot_description, timeout_s: 25 }
 
   - id: controller
@@ -21,4 +22,5 @@ baseline:
     kind: launch
     depends_on: [robot_urdf]
     command: "ros2 launch w_type_mm control.launch.py ekf_enable:=true"
+    skip_if_running: true
     healthcheck: { type: node, node: /controller_manager, timeout_s: 30 }
