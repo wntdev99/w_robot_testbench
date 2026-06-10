@@ -70,6 +70,8 @@ export const api = {
   services: () => req<{ services: { name: string; types: string[] }[] }>("/api/services"),
   callService: (name: string, type: string, values: Record<string, unknown>) =>
     req<{ ok: boolean; response?: unknown; error?: string }>("/api/service", { method: "POST", body: JSON.stringify({ name, type, values }) }),
+  sendAction: (name: string, type: string, goal: Record<string, unknown>) =>
+    req<{ ok: boolean; result?: unknown; error?: string }>("/api/action", { method: "POST", body: JSON.stringify({ name, type, goal }) }),
   // P4 자산화 + cycle
   recordStart: (project_id: string) =>
     req<{ run_id: string; recording: string[] }>("/api/record/start", { method: "POST", body: JSON.stringify({ project_id }) }),

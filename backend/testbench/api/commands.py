@@ -28,6 +28,12 @@ class ServiceBody(BaseModel):
     values: dict = {}
 
 
+class ActionBody(BaseModel):
+    name: str
+    type: str
+    goal: dict = {}
+
+
 @router.post("/api/publish")
 async def publish(request: Request, body: PublishBody) -> dict:
     try:
@@ -60,4 +66,13 @@ async def call_service(request: Request, body: ServiceBody) -> dict:
         result = await request.app.state.service_caller.call(body.name, body.type, body.values)
     except Exception as e:
         raise_http("service_failed", str(e), HTTP_BAD_REQUEST)
+    return ok(result)
+
+
+@router.post("/api/action")
+async def send_action(request: Request, body: ActionBody) -> dict:
+    try:
+        result = await request.app.state.action_caller.send_goal(body.name, body.type, body.goal)
+    except Exception as e:
+        raise_http("action_failed", str(e), HTTP_BAD_REQUEST)
     return ok(result)

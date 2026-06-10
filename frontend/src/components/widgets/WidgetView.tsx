@@ -7,6 +7,7 @@ import { ControlPub } from "./ControlPub";
 import { ProcessControl } from "./ProcessControl";
 import { StateView } from "./StateView";
 import { ServiceCall } from "./ServiceCall";
+import { ActionCall } from "./ActionCall";
 
 // 위젯 종류별 렌더 분기 (부속 D §3 위젯 카탈로그)
 export function WidgetView({ widget, live }: { widget: Widget; live: boolean }) {
@@ -21,6 +22,8 @@ export function WidgetView({ widget, live }: { widget: Widget; live: boolean }) 
       return <ControlPub name={widget.name ?? ""} type={widget.type ?? ""} />;
     case "control.service":
       return <ServiceCall name={widget.name ?? ""} type={widget.type ?? ""} />;
+    case "control.action":
+      return <ActionCall name={widget.name ?? ""} type={widget.type ?? ""} />;
     case "process":
       return <ProcessControl widget={widget} />;
     default:

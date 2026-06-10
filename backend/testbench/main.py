@@ -40,6 +40,7 @@ from testbench.procman.process_manager import ProcessManager
 from testbench.projects.cycle import CycleRunner
 from testbench.projects.store import ProjectStore
 from testbench.recorder.recorder import Recorder
+from testbench.ros.action import ActionCaller
 from testbench.ros.controller import ControllerManager
 from testbench.ros.publisher import PublisherPool
 from testbench.ros.service import ServiceCaller
@@ -78,6 +79,7 @@ def build_app(bridge, ws_manager, config, boot_gate, boot_scan, emergency, proce
     app.state.publisher_pool = PublisherPool(bridge)
     app.state.controller_mgr = ControllerManager(bridge)
     app.state.service_caller = ServiceCaller(bridge)
+    app.state.action_caller = ActionCaller(bridge)
     app.state.recorder = Recorder(bridge)
     app.state.cycle_runner = CycleRunner()
 

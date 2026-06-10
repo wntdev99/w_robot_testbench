@@ -9,6 +9,7 @@ const WIDGET_KINDS = [
   { kind: "state", label: "상태 표시" },
   { kind: "control.topic_pub", label: "토픽 발행(제어)" },
   { kind: "control.service", label: "서비스 호출" },
+  { kind: "control.action", label: "액션 요청" },
   { kind: "process", label: "런치/노드 실행" },
 ];
 
@@ -78,6 +79,7 @@ function WidgetEditRow({ widget, topics, services, onChange, onRemove }: {
 }) {
   const isControl = widget.kind === "control.topic_pub";
   const isService = widget.kind === "control.service";
+  const isAction = widget.kind === "control.action";
   const isProcess = widget.kind === "process";
   const selected = widget.name ?? widget.topic ?? "";
   return (
@@ -118,6 +120,13 @@ function WidgetEditRow({ widget, topics, services, onChange, onRemove }: {
             <option value="">선택…</option>
             {services.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
           </select>
+        </div>
+      ) : isAction ? (
+        <div className="space-y-2 text-sm">
+          <input value={widget.name ?? ""} onChange={(e) => onChange({ name: e.target.value })}
+            placeholder="/action 이름" className="border border-border rounded px-2 py-1 w-full font-mono text-xs" />
+          <input value={widget.type ?? ""} onChange={(e) => onChange({ type: e.target.value })}
+            placeholder="pkg/action/Type" className="border border-border rounded px-2 py-1 w-full font-mono text-xs" />
         </div>
       ) : (
         <div className="flex items-center gap-2 text-sm">
