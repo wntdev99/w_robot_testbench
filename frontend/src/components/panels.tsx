@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { X, GripVertical } from "lucide-react";
+import { X, GripVertical, RefreshCw } from "lucide-react";
 import { api, recordingDownloadUrl, cameraStreamUrl, navMapUrl } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { Card } from "@/components/Card";
@@ -426,21 +426,27 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [running, setRunning] = useState<{ package: string; file: string; pid: number | null }[]>([]);
+  const [scanning, setScanning] = useState(false);
   const [msg, setMsg] = useState("");
 
   const loadFiles = async () => {
     setLoading(true);
     try { setFiles(await api.launchFiles(machine)); } catch { setFiles([]); } finally { setLoading(false); }
   };
-  useEffect(() => { loadFiles(); /* eslint-disable-next-line */ }, [machine]);
+  const loadRunning = async () => {
+    setScanning(true);
+    try { setRunning(await api.runningLaunches(machine)); } catch { setRunning([]); } finally { setScanning(false); }
+  };
+  useEffect(() => { loadFiles(); loadRunning(); /* eslint-disable-next-line */ }, [machine]);
   const loadProfiles = () => api.profiles().then(setProfiles).catch(() => {});
   useEffect(() => { loadProfiles(); }, []);
 
   const run = async (f: { package: string; file: string }) => {
     setMsg(`실행 요청: ${f.package} ${f.file}`);
-    try { await api.runLaunch(machine, f.package, f.file); } catch (e) { setMsg(String(e)); }
+    try { await api.runLaunch(machine, f.package, f.file); setTimeout(loadRunning, 1500); } catch (e) { setMsg(String(e)); }
   };
-  const stop = async (id: string) => { try { await api.stopProcess(id); } catch (e) { setMsg(String(e)); } };
+  const stop = async (id: string) => { try { await api.stopProcess(id); setTimeout(loadRunning, 1500); } catch (e) { setMsg(String(e)); } };
   const toggleProfile = async (p: any) => {
     try { await (p.up ? api.profileDown(p.id) : api.profileUp(p.id)); loadProfiles(); } catch (e) { setMsg(String(e)); }
   };
@@ -488,17 +494,27 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
         ))}
       </div>
 
-      {/* 실행 중 */}
-      <div className="mt-3 text-[11px] font-medium text-ink-faint">실행 중 프로세스</div>
+      {/* 실행 중 런치 (해당 머신 실제 스캔 — 외부 시작 포함) */}
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-[11px] font-medium text-ink-faint">실행 중 런치 ({machine === "server" ? "202" : "201"})</span>
+        <button onClick={loadRunning} className="flex items-center gap-1 rounded bg-surface-muted px-2 py-0.5 text-[11px] text-ink-soft hover:bg-surface-line">
+          <RefreshCw size={11} className={cn(scanning && "animate-spin")} /> 파악
+        </button>
+      </div>
       <div className="space-y-1">
-        {processes.length === 0 && <div className="text-xs text-ink-faint">없음</div>}
-        {processes.map((r) => (
-          <div key={r.id} className="flex items-center gap-2 text-xs">
-            <span className={cn("w-14 shrink-0 font-medium", STATE_COLOR[r.state] ?? "text-ink-faint")}>{r.state}</span>
-            <span className="min-w-0 flex-1 truncate font-mono text-ink-soft">{r.proc_id} <span className="text-ink-faint">@{r.machine}</span></span>
-            {r.kind !== "zenoh" && <button onClick={() => stop(r.id)} className="shrink-0 rounded bg-danger/10 px-2 py-0.5 text-danger">종료</button>}
-          </div>
-        ))}
+        {running.length === 0 && <div className="text-xs text-ink-faint">{scanning ? "스캔 중…" : "실행 중 ros2 launch 없음"}</div>}
+        {running.map((r, i) => {
+          // 테스트벤치가 관리(우리가 띄움)하는지 → proc_id 매칭 시 종료 버튼
+          const managed = processes.find((p) => p.machine === machine && p.proc_id === `${r.package}/${r.file}` && p.kind !== "zenoh");
+          return (
+            <div key={r.package + r.file + i} className="flex items-center gap-2 text-xs">
+              <span className="min-w-0 flex-1 truncate font-mono text-ink-soft">{r.package}/{r.file}{r.pid ? <span className="text-ink-faint"> ·{r.pid}</span> : ""}</span>
+              {managed
+                ? <button onClick={() => stop(managed.id)} className="shrink-0 rounded bg-danger/10 px-2 py-0.5 text-danger">종료</button>
+                : <span className="shrink-0 text-[10px] text-ink-faint">외부</span>}
+            </div>
+          );
+        })}
       </div>
       {msg && <div className="mt-2 break-all text-xs text-ink-faint">{msg}</div>}
     </Shell>

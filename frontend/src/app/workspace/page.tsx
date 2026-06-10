@@ -165,7 +165,10 @@ function WorkspaceInner() {
   // ?snapshot=이름 진입/변경 시 자동 복원 (사이드바·대시보드에서 클릭 시, 마운트 유지 중에도 반영)
   const searchParams = useSearchParams();
   const snapParam = searchParams.get("snapshot");
-  useEffect(() => { if (snapParam) loadSnap(snapParam); }, [snapParam]); // eslint-disable-line
+  useEffect(() => {
+    if (snapParam) loadSnap(snapParam);     // 스냅샷 클릭 → 해당 구성 복원
+    else setPanels([]);                     // 스냅샷 없이 워크스페이스 진입 → 초기 빈 화면
+  }, [snapParam]); // eslint-disable-line
 
   const visible = topics.filter((t) => (onlyPlottable ? t.plottable : true));
   const canRemove = true;  // 빈 워크스페이스 허용 → 단일 패널도 제거 가능
