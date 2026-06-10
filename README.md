@@ -33,14 +33,20 @@
 ## 실행
 
 ### 1. 백엔드 (서버=202 또는 개발 PC, ROS2 Jazzy + `rmw_zenoh_cpp` 소싱)
+의존성은 **rosdep로 apt 설치**합니다 (PEP 668 회피, `pip` 불필요). 모두 apt 패키지로 제공됨:
+fastapi/uvicorn/pydantic/psutil/yaml/opencv + rclpy/rosidl_runtime_py/tf2_ros/cv_bridge.
 ```bash
-pip install fastapi "uvicorn[standard]" pyyaml psutil pydantic   # 최초 1회 (asyncssh 불필요 — 시스템 ssh 사용)
+./scripts/install_deps.sh                 # rosdep install (없으면 apt 직접). 1회
+# 수동: rosdep install --from-paths backend --ignore-src -r -y --skip-keys ament_python
+
 cd backend
 python3 -m testbench.main                 # config/testbench.yaml 의 host:port (기본 0.0.0.0:8080)
 # 임의 포트: python3 -m testbench.main --port 8099
 ```
-- 추가 의존(런타임에 ROS2가 제공): `rclpy`, `rosidl_runtime_py`, `tf2_ros`, `cv_bridge`, `cv2`(카메라/네비)
+- `backend/`는 ament_python 패키지(`package.xml`)라 colcon 워크스페이스에 넣어 `colcon build` + systemd 배포도 가능.
+  (설치 경로 배포 시 `TESTBENCH_CONFIG_DIR`로 config 위치 지정)
 - 시작 플랜 자동 실행은 `config/startup.json`의 `auto_on_boot`로 제어(부팅 시 팝업 승인). `TESTBENCH_NO_AUTOSTART=1`로 무시 가능.
+- ⚠ apt `python3-pydantic`은 v1 — 코드는 v1/v2 모두 호환.
 
 ### 2. 프론트엔드 (Next.js 14, 정적 export)
 ```bash

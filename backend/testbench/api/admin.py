@@ -36,7 +36,9 @@ class Plan(BaseModel):
 
 @router.put("/plan")
 async def put_plan(plan: Plan, request: Request):
-    return request.app.state.ctx.orch.set_plan(plan.model_dump())
+    # pydantic v2(model_dump)·v1(dict) 모두 지원 (apt python3-pydantic 은 v1)
+    data = plan.model_dump() if hasattr(plan, "model_dump") else plan.dict()
+    return request.app.state.ctx.orch.set_plan(data)
 
 
 @router.post("/apply")
