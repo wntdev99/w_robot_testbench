@@ -134,12 +134,14 @@ function WorkspaceInner() {
   const remove = (id: string) => setPanels((ps) => ps.filter((p) => p.id !== id));
 
   // ── 스냅샷 저장/복원 ──
+  const searchParams = useSearchParams();
+  const snapParam = searchParams.get("snapshot");   // 현재 불러온 스냅샷 이름
   const [snaps, setSnaps] = useState<{ name: string; updated: number }[]>([]);
   const [saveOpen, setSaveOpen] = useState(false);
   const [snapName, setSnapName] = useState("");
   const loadSnaps = () => api.snapshots().then(setSnaps).catch(() => {});
   useEffect(() => { loadSnaps(); }, []);
-  const openSave = () => { setSnapName(""); setSaveOpen(true); };
+  const openSave = () => { setSnapName(snapParam || ""); setSaveOpen(true); };  // 현재 스냅샷명 prefill
   const confirmSave = async () => {
     const name = snapName.trim();
     if (!name) return;
@@ -163,8 +165,6 @@ function WorkspaceInner() {
     loadSnaps();
   };
   // ?snapshot=이름 진입/변경 시 자동 복원 (사이드바·대시보드에서 클릭 시, 마운트 유지 중에도 반영)
-  const searchParams = useSearchParams();
-  const snapParam = searchParams.get("snapshot");
   useEffect(() => {
     if (snapParam) loadSnap(snapParam);     // 스냅샷 클릭 → 해당 구성 복원
     else setPanels([]);                     // 스냅샷 없이 워크스페이스 진입 → 초기 빈 화면
@@ -198,9 +198,9 @@ function WorkspaceInner() {
               <option value="">스냅샷 불러오기…</option>
               {snaps.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
             </select>
-            <button onClick={openSave} title="현재 구성 저장"
+            <button onClick={openSave} title={snapParam ? `'${snapParam}' 덮어쓰기 또는 새 이름으로 저장` : "현재 구성 저장"}
               className="flex items-center gap-1 rounded-lg bg-surface-muted px-2 py-1.5 font-medium hover:bg-surface-line">
-              <Save size={13} /> 저장
+              <Save size={13} /> {snapParam ? "저장(덮어쓰기)" : "저장"}
             </button>
             {snaps.length > 0 && (
               <select value="" onChange={(e) => deleteSnap(e.target.value)} title="스냅샷 삭제"
@@ -285,9 +285,16 @@ function WorkspaceInner() {
       {/* 스냅샷 저장 모달 (Toss풍) */}
       {saveOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4" onClick={() => setSaveOpen(false)}>
+          {(() => {
+            const name = snapName.trim();
+            const exists = snaps.some((s) => s.name === name);
+            return (
           <div className="w-full max-w-sm rounded-2xl bg-surface p-5 shadow-card" onClick={(e) => e.stopPropagation()}>
             <div className="text-base font-bold">스냅샷 저장</div>
-            <p className="mt-1 text-xs text-ink-faint">현재 워크스페이스 구성을 이름으로 저장합니다. 같은 이름이면 덮어씁니다.</p>
+            <p className="mt-1 text-xs text-ink-faint">
+              {snapParam ? <>현재 불러온 스냅샷 <b className="text-ink">‘{snapParam}’</b>. 이름 그대로 저장하면 덮어쓰고, 바꾸면 새로 저장합니다.</>
+                : "현재 워크스페이스 구성을 이름으로 저장합니다."}
+            </p>
             <input
               autoFocus value={snapName}
               onChange={(e) => setSnapName(e.target.value)}
@@ -295,13 +302,22 @@ function WorkspaceInner() {
               placeholder="예: 모터 온도 테스트"
               className="mt-4 w-full rounded-xl border border-surface-line px-3 py-2 text-sm outline-none focus:border-brand-500"
             />
+            <div className="mt-2 text-xs">
+              {name && (exists
+                ? <span className="text-warn">기존 ‘{name}’ <b>덮어쓰기</b></span>
+                : <span className="text-ok">새 스냅샷 ‘{name}’ 생성</span>)}
+            </div>
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setSaveOpen(false)}
                 className="rounded-xl bg-surface-muted px-4 py-2 text-sm font-medium text-ink-soft hover:bg-surface-line">취소</button>
-              <button onClick={confirmSave} disabled={!snapName.trim()}
-                className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">저장</button>
+              <button onClick={confirmSave} disabled={!name}
+                className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                {exists ? "덮어쓰기" : "저장"}
+              </button>
             </div>
           </div>
+            );
+          })()}
         </div>
       )}
     </div>
