@@ -274,8 +274,12 @@ class Orchestrator:
     async def list_launch_files(self, machine: str = "server") -> list[dict]:
         if machine == "controller" and self._remote:
             ws = self._cfg.controller.ws or "~/colcon_ws"
+            # isolated(install/<pkg>/share/<pkg>/launch)·merged(install/share/<pkg>/launch)
+            # 레이아웃 모두 커버. -L: --symlink-install 빌드의 심볼릭 링크 추적. __pycache__ 제외.
             out = await self._remote.run_capture(
-                f"find {ws}/install/*/share/*/launch -type f -name '*.launch.*' 2>/dev/null")
+                f"find -L {ws}/install -type f -path '*/share/*/launch/*' "
+                f"\\( -name '*.launch.py' -o -name '*.launch.xml' -o -name '*.launch.yaml' \\) "
+                f"! -path '*__pycache__*' 2>/dev/null")
             return parse_remote_find(out)
         return scan_local_launch_files()
 
