@@ -57,7 +57,7 @@
 - [x] introspect API (`c9667eb`) — /api/topics·services·types/{type}/fields
 - [x] 프로젝트 CRUD (`c9667eb`) — user 쓰기(~/.w_robot_testbench), create/update/delete/duplicate
 - [x] 레이아웃 빌더 — 위젯 팔레트·편집·저장 + 복제/삭제/새프로젝트, 빌드 ✅
-- [ ] 위젯 동적폼 — control 위젯 임의 메시지 타입 재귀 폼(typeFields 기반). 현재 ControlPub은 Twist 전용
+- [x] 위젯 동적폼 — ControlPub 임의 메시지 타입 재귀 폼(typeFields, 중첩 메시지/배열/bool/string), 빌드 ✅
 - [ ] P2 202 통합 검증 (새 프로젝트 생성→위젯 추가→저장→실행)
 
 ### P1 잔여 (텔레옵 프로젝트)
