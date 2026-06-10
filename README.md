@@ -73,6 +73,39 @@ NEXT_PUBLIC_API_BASE=http://192.168.34.202:8080 npm run dev # :3000
 ```
 > ⚠ `NEXT_PUBLIC_API_BASE`는 **브라우저 안에서 해석**됩니다. `localhost`로 두면 *접속한 브라우저의* localhost를 가리키므로, 다른 PC에서 접속하면 백엔드를 못 찾아 **"플랜 로드 실패"** 등 모든 API 호출이 실패합니다. 원격 접속이면 반드시 **서버 LAN IP**를 쓰거나(②), 위의 빌드본 서빙(①)을 사용하세요.
 
+## 실제 로봇에 수동 배포 (서버=202)
+백엔드는 **서버 PC1(`192.168.34.202`)에만** 배포합니다. 컨트롤러(201)는 별도 설치 없이 202→201 **키 기반 SSH**만 되면 됩니다(런치를 SSH로 원격 기동). 개발 PC는 배포 대상이 아닙니다.
+
+전제: 202에 코드가 git clone 되어 있음 (예: `~/ros2_ws/src/w_robot_testbench`), ROS2 Jazzy + `rmw_zenoh_cpp` 설치됨, Node.js/npm 설치됨.
+
+```bash
+# ── 개발 PC ──
+git push                                            # 변경 푸시
+
+# ── 서버 202 (ssh james@192.168.34.202) ──
+cd ~/ros2_ws/src/w_robot_testbench
+git pull                                            # 최신 코드 반영
+
+# 1) ROS 환경 소싱 (이 셸에서)
+source /opt/ros/jazzy/setup.bash
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+#   202는 zenoh 라우터가 로컬이라 기본 설정으로 접속됨(클라이언트 override 불필요)
+
+# 2) 백엔드 의존성 (코드/의존 변경 시 1회) — rosdep로 apt 설치
+./scripts/install_deps.sh
+
+# 3) 프론트 빌드 (프론트 변경 시) → frontend/out
+cd frontend && npm install && npm run build && cd ..
+
+# 4) 백엔드 실행 (out 을 같은 오리진에서 서빙)
+cd backend && python3 -m testbench.main              # 0.0.0.0:8080
+```
+→ 브라우저에서 **`http://192.168.34.202:8080`** 접속. 중지는 `Ctrl+C` 또는 `pkill -f testbench.main`.
+
+> **요약**: ① `git pull` → ② (변경 시) `install_deps.sh` → ③ (프론트 변경 시) `npm run build` → ④ `python3 -m testbench.main`. 백엔드 코드만 바꿨으면 ②③은 건너뛰고 ④만 재시작하면 됩니다.
+
+**선택 — colcon 설치본/systemd 상시 구동:** `~/ros2_ws`에서 `colcon build --packages-select w_robot_testbench` 후 `ros2 run w_robot_testbench testbench` 로도 실행 가능(단 `frontend/out`은 npm 빌드가 따로 필요, config는 `TESTBENCH_CONFIG_DIR`로 위치 지정). 부팅 시 상시 구동은 이 진입점을 systemd 유닛(`ExecStart=ros2 run w_robot_testbench testbench`, ROS 환경 소싱 포함)으로 등록하고 `systemctl enable --now` → 중지는 `systemctl stop`.
+
 ## 설정 (`config/`)
 - `testbench.yaml` — 서버/컨트롤러 머신, zenoh, liveness, 스트리밍
 - `startup.json` — 시작 플랜(런타임, gitignore). 관리자 탭에서 편집
