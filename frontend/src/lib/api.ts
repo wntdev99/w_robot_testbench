@@ -51,7 +51,20 @@ export const api = {
   baseline: () => req<{ baseline: BaselineItem[] }>("/api/baseline"),
   baselineUp: () => req("/api/baseline/up", { method: "POST" }),
   baselineDown: () => req("/api/baseline/down", { method: "POST" }),
+  // P2 저작 CRUD + introspect
+  createProject: (p: Partial<Project>) =>
+    req<Project>("/api/projects", { method: "POST", body: JSON.stringify(p) }),
+  updateProject: (id: string, p: Project) =>
+    req<Project>(`/api/projects/${id}`, { method: "PUT", body: JSON.stringify(p) }),
+  deleteProject: (id: string) => req(`/api/projects/${id}`, { method: "DELETE" }),
+  duplicateProject: (id: string, name?: string) =>
+    req<Project>(`/api/projects/${id}/duplicate`, { method: "POST", body: JSON.stringify({ name }) }),
+  topics: () => req<{ topics: { name: string; types: string[] }[] }>("/api/topics"),
+  typeFields: (type: string) =>
+    req<{ type: string; fields: Record<string, FieldNode> }>(`/api/types/${encodeURIComponent(type)}/fields`),
 };
+
+export type FieldNode = { type: string; array: boolean; fields?: Record<string, FieldNode> };
 
 export type Widget = {
   id: string; kind: string; title: string;

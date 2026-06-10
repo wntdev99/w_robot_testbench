@@ -53,6 +53,13 @@
 - [ ] **P4 러너+자산화** — runner(cycle/sequence)·record(CSV/JSON·counters·수동 verdict)·데이터 자산 페이지
 - [ ] **P5 전장부+진단+카메라** — BMS/Elyx 위젯·diagnostics·CAN 진단 / MJPEG/WebRTC·fps·USB허브
 
+### P2 (프로젝트 저작 UI) — 진행 중
+- [x] introspect API (`c9667eb`) — /api/topics·services·types/{type}/fields
+- [x] 프로젝트 CRUD (`c9667eb`) — user 쓰기(~/.w_robot_testbench), create/update/delete/duplicate
+- [x] 레이아웃 빌더 — 위젯 팔레트·편집·저장 + 복제/삭제/새프로젝트, 빌드 ✅
+- [ ] 위젯 동적폼 — control 위젯 임의 메시지 타입 재귀 폼(typeFields 기반). 현재 ControlPub은 Twist 전용
+- [ ] P2 202 통합 검증 (새 프로젝트 생성→위젯 추가→저장→실행)
+
 ### P1 잔여 (텔레옵 프로젝트)
 - [x] ~~controller switch~~ ✅ (`3d83031`) controller_manager list/switch service
 - [x] ~~emergency 실제 cmd_vel 0~~ ✅ (`3d83031`) cmd_vel 토픽 0 Twist 발행
