@@ -22,6 +22,12 @@ class SpawnBody(BaseModel):
     machine: str = "server"  # server | controller
 
 
+class ServiceBody(BaseModel):
+    name: str
+    type: str
+    values: dict = {}
+
+
 @router.post("/api/publish")
 async def publish(request: Request, body: PublishBody) -> dict:
     try:
@@ -46,3 +52,12 @@ async def spawn_process(request: Request, body: SpawnBody) -> dict:
 async def kill_process(request: Request, proc_id: str) -> dict:
     request.app.state.process_manager.kill(proc_id)
     return ok({"killed": proc_id})
+
+
+@router.post("/api/service")
+async def call_service(request: Request, body: ServiceBody) -> dict:
+    try:
+        result = await request.app.state.service_caller.call(body.name, body.type, body.values)
+    except Exception as e:
+        raise_http("service_failed", str(e), HTTP_BAD_REQUEST)
+    return ok(result)

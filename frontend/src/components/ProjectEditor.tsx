@@ -6,7 +6,9 @@ import { api, type Project, type Widget } from "@/lib/api";
 const WIDGET_KINDS = [
   { kind: "plot.topic", label: "토픽 플롯" },
   { kind: "diagnostics", label: "Diagnostics" },
+  { kind: "state", label: "상태 표시" },
   { kind: "control.topic_pub", label: "토픽 발행(제어)" },
+  { kind: "control.service", label: "서비스 호출" },
   { kind: "process", label: "런치/노드 실행" },
 ];
 
@@ -17,9 +19,13 @@ export function ProjectEditor({ project, onSaved }: { project: Project; onSaved:
   const [name, setName] = useState(project.name);
   const [widgets, setWidgets] = useState<Widget[]>(project.layout?.widgets ?? []);
   const [topics, setTopics] = useState<Topic[]>([]);
+  const [services, setServices] = useState<Topic[]>([]);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { api.topics().then((r) => setTopics(r.topics)).catch(() => {}); }, []);
+  useEffect(() => {
+    api.topics().then((r) => setTopics(r.topics)).catch(() => {});
+    api.services().then((r) => setServices(r.services)).catch(() => {});
+  }, []);
 
   const addWidget = (kind: string) => {
     const id = `w_${Date.now().toString(36)}`;
@@ -57,7 +63,7 @@ export function ProjectEditor({ project, onSaved }: { project: Project; onSaved:
       </div>
       <div className="space-y-3">
         {widgets.map((w) => (
-          <WidgetEditRow key={w.id} widget={w} topics={topics}
+          <WidgetEditRow key={w.id} widget={w} topics={topics} services={services}
             onChange={(p) => patch(w.id, p)} onRemove={() => remove(w.id)} />
         ))}
         {widgets.length === 0 && <div className="text-muted text-sm">위젯을 추가하세요.</div>}
@@ -66,11 +72,12 @@ export function ProjectEditor({ project, onSaved }: { project: Project; onSaved:
   );
 }
 
-function WidgetEditRow({ widget, topics, onChange, onRemove }: {
-  widget: Widget; topics: Topic[];
+function WidgetEditRow({ widget, topics, services, onChange, onRemove }: {
+  widget: Widget; topics: Topic[]; services: Topic[];
   onChange: (p: Partial<Widget>) => void; onRemove: () => void;
 }) {
   const isControl = widget.kind === "control.topic_pub";
+  const isService = widget.kind === "control.service";
   const isProcess = widget.kind === "process";
   const selected = widget.name ?? widget.topic ?? "";
   return (
@@ -99,6 +106,19 @@ function WidgetEditRow({ widget, topics, onChange, onRemove }: {
             </select>
           </label>
         </div>
+      ) : isService ? (
+        <div className="flex items-center gap-2 text-sm">
+          서비스:
+          <select value={widget.name ?? ""}
+            onChange={(e) => {
+              const s = services.find((x) => x.name === e.target.value);
+              onChange({ name: e.target.value, type: s?.types[0] });
+            }}
+            className="border border-border rounded px-2 py-1 flex-1">
+            <option value="">선택…</option>
+            {services.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+          </select>
+        </div>
       ) : (
         <div className="flex items-center gap-2 text-sm">
           토픽:
@@ -114,7 +134,7 @@ function WidgetEditRow({ widget, topics, onChange, onRemove }: {
           </select>
         </div>
       )}
-      {isControl && widget.type && <div className="text-xs text-muted">타입: {widget.type}</div>}
+      {(isControl || isService) && widget.type && <div className="text-xs text-muted">타입: {widget.type}</div>}
       {widget.kind === "diagnostics" && (
         <input value={widget.hardware_id_filter ?? ""} placeholder="hardware_id 필터 (예: can2)"
           onChange={(e) => onChange({ hardware_id_filter: e.target.value })}

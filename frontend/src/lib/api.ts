@@ -67,6 +67,9 @@ export const api = {
   duplicateProject: (id: string, name?: string) =>
     req<Project>(`/api/projects/${id}/duplicate`, { method: "POST", body: JSON.stringify({ name }) }),
   topics: () => req<{ topics: { name: string; types: string[] }[] }>("/api/topics"),
+  services: () => req<{ services: { name: string; types: string[] }[] }>("/api/services"),
+  callService: (name: string, type: string, values: Record<string, unknown>) =>
+    req<{ ok: boolean; response?: unknown; error?: string }>("/api/service", { method: "POST", body: JSON.stringify({ name, type, values }) }),
   // P4 자산화 + cycle
   recordStart: (project_id: string) =>
     req<{ run_id: string; recording: string[] }>("/api/record/start", { method: "POST", body: JSON.stringify({ project_id }) }),

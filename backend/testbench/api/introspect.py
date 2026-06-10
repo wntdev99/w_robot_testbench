@@ -27,21 +27,23 @@ async def list_services(request: Request) -> dict:
     return ok({"services": [{"name": n, "types": t} for n, t in b.list_services().items()]})
 
 
-def _fields(type_str: str, depth: int = 0) -> dict:
-    """메시지 타입 → 필드 트리 (중첩 메시지 재귀, 배열 표시)."""
+def _fields_of_type(msg_type, depth: int = 0) -> dict:
+    """필드 트리 (중첩 재귀·배열). msg 타입 객체 또는 srv Request 둘 다 받음."""
     if depth > 6:
         return {}
-    msg = get_message(type_str)
     out: dict = {}
-    for fname, ftype in msg.get_fields_and_field_types().items():
+    for fname, ftype in msg_type.get_fields_and_field_types().items():
         is_array = "sequence" in ftype or ftype.endswith("]") or "[" in ftype
-        base = ftype.replace("sequence<", "").rstrip(">")
-        base = base.split("[")[0].strip()
+        base = ftype.replace("sequence<", "").rstrip(">").split("[")[0].strip()
         if "/" in base:  # 중첩 메시지
-            out[fname] = {"type": ftype, "array": is_array, "fields": _fields(base, depth + 1)}
+            out[fname] = {"type": ftype, "array": is_array, "fields": _fields_of_type(get_message(base), depth + 1)}
         else:
             out[fname] = {"type": ftype, "array": is_array}
     return out
+
+
+def _fields(type_str: str, depth: int = 0) -> dict:
+    return _fields_of_type(get_message(type_str), depth)
 
 
 @router.get("/api/types/{type_str:path}/fields")
@@ -50,3 +52,13 @@ async def type_fields(type_str: str) -> dict:
         return ok({"type": type_str, "fields": _fields(type_str)})
     except Exception as e:
         raise_http("type_err", f"{type_str}: {e}", HTTP_BAD_REQUEST)
+
+
+@router.get("/api/srv/{srv_type:path}/fields")
+async def srv_fields(srv_type: str) -> dict:
+    """service Request 필드 트리 (control.service 동적폼)."""
+    try:
+        from testbench.ros.service import service_request_fields
+        return ok({"type": srv_type, "fields": service_request_fields(srv_type)})
+    except Exception as e:
+        raise_http("type_err", f"{srv_type}: {e}", HTTP_BAD_REQUEST)

@@ -42,6 +42,7 @@ from testbench.projects.store import ProjectStore
 from testbench.recorder.recorder import Recorder
 from testbench.ros.controller import ControllerManager
 from testbench.ros.publisher import PublisherPool
+from testbench.ros.service import ServiceCaller
 from testbench.ros.subscriber_pool import SubscriberPool
 from testbench.ros_bridge import RosBridge
 from testbench.ws_manager import WsManager
@@ -76,6 +77,7 @@ def build_app(bridge, ws_manager, config, boot_gate, boot_scan, emergency, proce
     app.state.subscriber_pool = SubscriberPool(bridge, ws_manager)
     app.state.publisher_pool = PublisherPool(bridge)
     app.state.controller_mgr = ControllerManager(bridge)
+    app.state.service_caller = ServiceCaller(bridge)
     app.state.recorder = Recorder(bridge)
     app.state.cycle_runner = CycleRunner()
 

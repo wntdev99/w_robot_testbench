@@ -5,6 +5,8 @@ import { PlotTopic } from "./PlotTopic";
 import { DiagnosticsView } from "./Diagnostics";
 import { ControlPub } from "./ControlPub";
 import { ProcessControl } from "./ProcessControl";
+import { StateView } from "./StateView";
+import { ServiceCall } from "./ServiceCall";
 
 // 위젯 종류별 렌더 분기 (부속 D §3 위젯 카탈로그)
 export function WidgetView({ widget, live }: { widget: Widget; live: boolean }) {
@@ -13,8 +15,12 @@ export function WidgetView({ widget, live }: { widget: Widget; live: boolean }) 
       return <PlotTopic topic={widget.topic} live={live} />;
     case "diagnostics":
       return <DiagnosticsView topic={widget.topic} filter={widget.hardware_id_filter} live={live} />;
+    case "state":
+      return <StateView topic={widget.topic} live={live} />;
     case "control.topic_pub":
       return <ControlPub name={widget.name ?? ""} type={widget.type ?? ""} />;
+    case "control.service":
+      return <ServiceCall name={widget.name ?? ""} type={widget.type ?? ""} />;
     case "process":
       return <ProcessControl widget={widget} />;
     default:
