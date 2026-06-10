@@ -11,12 +11,13 @@ test_project:
   layout:
     grid: { cols: 12, row_h: 40 }
     widgets:
-      - id: w_cmdvel
-        kind: control.topic_pub
-        title: "cmd_vel (수동 Twist)"
-        pos: { x: 0, y: 0, w: 4, h: 5 }
-        name: /swerve_controller/cmd_vel
-        type: geometry_msgs/msg/Twist
+      - id: w_teleop
+        kind: control.teleop
+        title: "텔레옵 패드 (화면/게임패드/키보드)"
+        pos: { x: 0, y: 0, w: 4, h: 9 }
+        topic: /swerve_controller/cmd_vel   # geometry_msgs/Twist 고정 발행
+        max_lin: 0.4                          # m/s 상한
+        max_yaw: 0.8                          # rad/s 상한
       - id: w_joints
         kind: plot.topic
         title: "joint_states"

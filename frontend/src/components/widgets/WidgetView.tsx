@@ -9,6 +9,7 @@ import { StateView } from "./StateView";
 import { ServiceCall } from "./ServiceCall";
 import { ActionCall } from "./ActionCall";
 import { ImageView } from "./ImageView";
+import { Teleop } from "./Teleop";
 
 // 위젯 종류별 렌더 분기 (부속 D §3 위젯 카탈로그)
 export function WidgetView({ widget, live }: { widget: Widget; live: boolean }) {
@@ -21,6 +22,8 @@ export function WidgetView({ widget, live }: { widget: Widget; live: boolean }) 
       return <StateView topic={widget.topic} live={live} />;
     case "image":
       return <ImageView widget={widget} live={live} />;
+    case "control.teleop":
+      return <Teleop topic={widget.topic} maxLin={widget.max_lin} maxYaw={widget.max_yaw} live={live} />;
     case "control.topic_pub":
       return <ControlPub name={widget.name ?? ""} type={widget.type ?? ""} />;
     case "control.service":

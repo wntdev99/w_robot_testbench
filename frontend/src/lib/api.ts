@@ -98,6 +98,7 @@ export type Widget = {
   pos: { x: number; y: number; w: number; h: number };
   name?: string; type?: string; topic?: string; hardware_id_filter?: string;
   command?: string; machine?: string;
+  max_lin?: number; max_yaw?: number;  // control.teleop 속도 상한
 };
 export type Project = {
   id: string; name: string; description?: string; origin: string;

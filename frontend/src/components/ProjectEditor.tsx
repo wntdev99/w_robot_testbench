@@ -9,6 +9,7 @@ const WIDGET_KINDS = [
   { kind: "diagnostics", label: "Diagnostics" },
   { kind: "state", label: "상태 표시" },
   { kind: "image", label: "카메라(MJPEG)" },
+  { kind: "control.teleop", label: "텔레옵 패드" },
   { kind: "control.topic_pub", label: "토픽 발행(제어)" },
   { kind: "control.service", label: "서비스 호출" },
   { kind: "control.action", label: "액션 요청" },
@@ -172,6 +173,18 @@ function WidgetEditRow({ widget, topics, services, onChange, onRemove }: {
         <input value={widget.hardware_id_filter ?? ""} placeholder="hardware_id 필터 (예: can2)"
           onChange={(e) => onChange({ hardware_id_filter: e.target.value })}
           className="border border-border rounded px-2 py-1 text-sm w-full" />
+      )}
+      {widget.kind === "control.teleop" && (
+        <div className="flex gap-3 text-xs">
+          <label className="flex items-center gap-1">최대 직진
+            <input type="number" step="0.1" value={widget.max_lin ?? 0.4}
+              onChange={(e) => onChange({ max_lin: +e.target.value })}
+              className="border border-border rounded px-1 py-0.5 w-16" /> m/s</label>
+          <label className="flex items-center gap-1">최대 회전
+            <input type="number" step="0.1" value={widget.max_yaw ?? 0.8}
+              onChange={(e) => onChange({ max_yaw: +e.target.value })}
+              className="border border-border rounded px-1 py-0.5 w-16" /> rad/s</label>
+        </div>
       )}
     </div>
   );
