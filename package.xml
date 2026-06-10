@@ -11,6 +11,7 @@
        (2026-06-09 202 rosdep DB 실측: 아래 키 전부 resolve 확인) -->
   <exec_depend>rclpy</exec_depend>
   <exec_depend>rosidl_runtime_py</exec_depend>
+  <exec_depend>controller_manager_msgs</exec_depend>
   <exec_depend>python3-fastapi</exec_depend>
   <exec_depend>python3-uvicorn</exec_depend>
   <exec_depend>python3-yaml</exec_depend>

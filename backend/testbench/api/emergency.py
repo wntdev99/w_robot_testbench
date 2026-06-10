@@ -11,6 +11,7 @@ router = APIRouter()
 
 @router.post("/api/emergency/stop")
 async def emergency_stop(request: Request) -> dict:
-    result = request.app.state.emergency.estop()
-    await request.app.state.ws_manager.broadcast("emergency", result)
+    s = request.app.state
+    result = s.emergency.estop(s.bridge, s.publisher_pool)
+    await s.ws_manager.broadcast("emergency", result)
     return ok(result)

@@ -18,10 +18,21 @@ class Emergency:
     def __init__(self, bridge) -> None:
         self.bridge = bridge
 
-    def estop(self) -> dict:
-        logger.warning("E-STOP triggered (P0 stub — cmd_vel 0 / goal cancel 미구현)")
-        # TODO(P2): cmd_vel 0 publish, 활성 액추에이터 정지, active goal cancel
+    def estop(self, bridge=None, publisher_pool=None) -> dict:
+        """cmd_vel 류 토픽에 0 Twist 발행 (L1). 프로세스 kill 아님(부속 D §4)."""
+        bridge = bridge or self.bridge
+        logger.warning("E-STOP triggered — cmd_vel 0 발행")
+        stopped: list[str] = []
+        if publisher_pool is not None and bridge is not None:
+            for topic, types in bridge.list_topics().items():
+                if "cmd_vel" in topic and any("Twist" in t for t in types):
+                    try:
+                        publisher_pool.publish(topic, types[0], {})  # 0 Twist
+                        stopped.append(topic)
+                    except Exception as e:
+                        logger.warning("estop publish %s 실패: %s", topic, e)
         return {
             "estopped": True,
-            "note": "P0 stub: 프로세스 kill 아님(L1). 실제 정지 로직 P2~P3.",
+            "cmd_vel_zeroed": stopped,
+            "note": "cmd_vel 0 발행(L1). 프로세스 kill 아님. 액추에이터·goal cancel은 P3.",
         }
