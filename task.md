@@ -54,6 +54,15 @@
 - [ ] **P4 러너+자산화** — runner(cycle/sequence)·record(CSV/JSON·counters·수동 verdict)·데이터 자산 페이지
 - [ ] **P5 전장부+진단+카메라** — BMS/Elyx 위젯·diagnostics·CAN 진단 / MJPEG/WebRTC·fps·USB허브
 
+### 위젯 확장(3번) + P5(1번) — 진행 중
+- [x] state·control.service·control.action 위젯 + 백엔드 service/action call (`af595a7`)
+- [x] **런치/노드 실행 위젯**(process) + ad-hoc spawn/kill (`4b75640`)
+- [x] **카메라 image 위젯**(MJPEG, CompressedImage/Image raw+pillow) + /api/camera/stream — orbbec 가동 시 실측
+- [x] system/admin 페이지 구현 (`4b75640`)
+- [ ] 전장부 diagnostics — 기존 위젯+필터(BMS/충전 토픽 실측 시)
+- [ ] 그리드 드래그 배치 (react-grid-layout, 선택 고도화)
+- [ ] 카메라/전장부 202 실측 검증 (orbbec·BMS 하드웨어 가동 필요)
+
 ### P4 (러너+자산화) — ✅ 완료
 - [x] recorder — run 단위 토픽 CSV + counters + **수동 verdict**(PASS/FAIL+코멘트) (`0fb811d`)
 - [x] cycle 러너 — steps(control 위젯 참조 publish)×count·settle_s·중단시 부분보존 (`0fb811d`)

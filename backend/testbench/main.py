@@ -24,6 +24,7 @@ from rclpy.executors import SingleThreadedExecutor
 
 from testbench.api.baseline import router as baseline_router
 from testbench.api.boot import router as boot_router
+from testbench.api.camera import router as camera_router
 from testbench.api.commands import router as commands_router
 from testbench.api.controllers import router as controllers_router
 from testbench.api.emergency import router as emergency_router
@@ -41,6 +42,7 @@ from testbench.projects.cycle import CycleRunner
 from testbench.projects.store import ProjectStore
 from testbench.recorder.recorder import Recorder
 from testbench.ros.action import ActionCaller
+from testbench.ros.camera import CameraStreamer
 from testbench.ros.controller import ControllerManager
 from testbench.ros.publisher import PublisherPool
 from testbench.ros.service import ServiceCaller
@@ -80,6 +82,7 @@ def build_app(bridge, ws_manager, config, boot_gate, boot_scan, emergency, proce
     app.state.controller_mgr = ControllerManager(bridge)
     app.state.service_caller = ServiceCaller(bridge)
     app.state.action_caller = ActionCaller(bridge)
+    app.state.camera_streamer = CameraStreamer(bridge)
     app.state.recorder = Recorder(bridge)
     app.state.cycle_runner = CycleRunner()
 
@@ -89,6 +92,7 @@ def build_app(bridge, ws_manager, config, boot_gate, boot_scan, emergency, proce
     app.include_router(projects_router)
     app.include_router(records_router)
     app.include_router(commands_router)
+    app.include_router(camera_router)
     app.include_router(introspect_router)
     app.include_router(controllers_router)
     app.include_router(emergency_router)

@@ -7,6 +7,7 @@ const WIDGET_KINDS = [
   { kind: "plot.topic", label: "토픽 플롯" },
   { kind: "diagnostics", label: "Diagnostics" },
   { kind: "state", label: "상태 표시" },
+  { kind: "image", label: "카메라(MJPEG)" },
   { kind: "control.topic_pub", label: "토픽 발행(제어)" },
   { kind: "control.service", label: "서비스 호출" },
   { kind: "control.action", label: "액션 요청" },
@@ -80,6 +81,7 @@ function WidgetEditRow({ widget, topics, services, onChange, onRemove }: {
   const isControl = widget.kind === "control.topic_pub";
   const isService = widget.kind === "control.service";
   const isAction = widget.kind === "control.action";
+  const isImage = widget.kind === "image";
   const isProcess = widget.kind === "process";
   const selected = widget.name ?? widget.topic ?? "";
   return (
@@ -135,6 +137,7 @@ function WidgetEditRow({ widget, topics, services, onChange, onRemove }: {
             onChange={(e) => {
               const t = topics.find((x) => x.name === e.target.value);
               if (isControl) onChange({ name: e.target.value, type: t?.types[0] });
+              else if (isImage) onChange({ topic: e.target.value, type: t?.types[0] });
               else onChange({ topic: e.target.value });
             }}
             className="border border-border rounded px-2 py-1 flex-1">
