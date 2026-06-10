@@ -58,7 +58,8 @@
 - [x] reconciler — orphan diff + confirm_required/decision(kill·keep·abort) (`628c505`)
 - [x] preflight 발행 검증(publisher_count) + 난입 주기 감지(intrusion_monitor) (`6b4ebcc`)
 - [x] 프론트 — confirm 다이얼로그 + report_missing(reason) (빌드 ✅)
-- [ ] P3 202 통합 검증 (프로젝트A live → 빈 프로젝트 run → orphan confirm → kill 후 수렴)
+- [x] P3 202 통합 검증 ✅ — teleop live(owned=project) → 다른 프로젝트 run → **confirm_required(orphans=[teleop_joy])** → decision kill → live + owned=[] + 노드 종료. **DIFF→CONFIRM_KILL→수렴 실증, P3 완료**
+- [ ] (잠재) 한글 프로젝트 id의 URL 경로 인코딩 검증 — 직전 검증 1회 이상거동, 영문 id는 정상
 
 ### P2 (프로젝트 저작 UI) — ✅ 완료
 - [x] introspect API (`c9667eb`) — /api/topics·services·types/{type}/fields
