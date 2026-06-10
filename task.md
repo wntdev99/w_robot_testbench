@@ -60,7 +60,7 @@
 - [x] **카메라 image 위젯**(MJPEG, CompressedImage/Image raw+pillow) + /api/camera/stream — orbbec 가동 시 실측
 - [x] system/admin 페이지 구현 (`4b75640`)
 - [ ] 전장부 diagnostics — 기존 위젯+필터(BMS/충전 토픽 실측 시)
-- [ ] 그리드 드래그 배치 (react-grid-layout, 선택 고도화)
+- [x] **그리드 드래그 배치**(react-grid-layout) — WidgetGrid 공용 컴포넌트, 편집기 드래그·리사이즈→pos(x/y/w/h) 저장, 실행 뷰 정적 렌더
 - [ ] 카메라/전장부 202 실측 검증 (orbbec·BMS 하드웨어 가동 필요)
 
 ### P4 (러너+자산화) — ✅ 완료

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type Project, type Widget } from "@/lib/api";
+import { WidgetGrid, type Pos } from "@/components/WidgetGrid";
 
 const WIDGET_KINDS = [
   { kind: "plot.topic", label: "토픽 플롯" },
@@ -37,6 +38,8 @@ export function ProjectEditor({ project, onSaved }: { project: Project; onSaved:
   const patch = (id: string, p: Partial<Widget>) =>
     setWidgets(widgets.map((w) => (w.id === id ? { ...w, ...p } : w)));
   const remove = (id: string) => setWidgets(widgets.filter((w) => w.id !== id));
+  const applyLayout = (byId: Record<string, Pos>) =>
+    setWidgets((ws) => ws.map((w) => (byId[w.id] ? { ...w, pos: { ...w.pos, ...byId[w.id] } } : w)));
 
   const save = async () => {
     setBusy(true);
@@ -63,6 +66,24 @@ export function ProjectEditor({ project, onSaved }: { project: Project; onSaved:
           {busy ? "저장 중…" : "저장"}
         </button>
       </div>
+      {widgets.length > 0 && (
+        <div className="rounded-card border border-border bg-bg/50 p-2">
+          <div className="text-xs text-muted mb-1 px-1">배치 — 헤더를 드래그해 이동, 모서리를 끌어 크기 조절</div>
+          <WidgetGrid
+            widgets={widgets}
+            cols={project.layout?.grid?.cols ?? 12}
+            rowH={project.layout?.grid?.row_h ?? 40}
+            editable
+            onLayoutChange={applyLayout}
+            renderItem={(w) => (
+              <div className="drag-handle cursor-move p-2 text-xs h-full flex flex-col">
+                <span className="font-semibold truncate">{w.title || w.kind}</span>
+                <span className="text-muted truncate">{w.kind}</span>
+              </div>
+            )}
+          />
+        </div>
+      )}
       <div className="space-y-3">
         {widgets.map((w) => (
           <WidgetEditRow key={w.id} widget={w} topics={topics} services={services}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api, type Project, type RunResult } from "@/lib/api";
 import { WidgetView } from "@/components/widgets/WidgetView";
+import { WidgetGrid } from "@/components/WidgetGrid";
 import { ProjectEditor } from "@/components/ProjectEditor";
 import { RunPanel } from "@/components/RunPanel";
 
@@ -89,17 +90,21 @@ export default function ProjectRunPage() {
 
       <RunPanel project={project} live={live} />
 
-      <div className="grid grid-cols-12 gap-3">
-        {(project.layout?.widgets ?? []).map((w) => (
-          <div key={w.id} style={{ gridColumn: `span ${w.pos.w}` }} className="rounded-card bg-surface border border-border p-4">
-            <div className="text-sm font-semibold mb-2">{w.title}</div>
-            <WidgetView widget={w} live={live} />
-          </div>
-        ))}
-        {(project.layout?.widgets ?? []).length === 0 && (
-          <div className="col-span-12 text-muted text-sm">위젯 없음 — 편집에서 추가하세요.</div>
-        )}
-      </div>
+      {(project.layout?.widgets ?? []).length === 0 ? (
+        <div className="text-muted text-sm">위젯 없음 — 편집에서 추가하세요.</div>
+      ) : (
+        <WidgetGrid
+          widgets={project.layout?.widgets ?? []}
+          cols={project.layout?.grid?.cols ?? 12}
+          rowH={project.layout?.grid?.row_h ?? 40}
+          renderItem={(w) => (
+            <div className="p-4 flex-1 overflow-auto">
+              <div className="text-sm font-semibold mb-2">{w.title}</div>
+              <WidgetView widget={w} live={live} />
+            </div>
+          )}
+        />
+      )}
     </div>
   );
 }
