@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gamepad 진단 — w_robot_testbench</title>
+<style>
+  body { font-family: -apple-system, "Noto Sans KR", sans-serif; background:#f2f4f6; color:#191f28; margin:0; padding:20px; }
+  h1 { font-size:18px; } .sub { color:#8b95a1; font-size:13px; margin-bottom:16px; }
+  .card { background:#fff; border:1px solid #e5e8eb; border-radius:16px; padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f2f4f6; font-size:14px; }
+  .ok { color:#12b886; font-weight:700; } .bad { color:#fa5252; font-weight:700; } .warn{color:#f59f00;font-weight:700;}
+  .mono { font-family: ui-monospace, monospace; font-size:12px; }
+  .bar { position:relative; height:10px; background:#f2f4f6; border-radius:5px; overflow:hidden; }
+  .bar > i { position:absolute; top:0; height:100%; background:#3182f6; }
+  .btn { display:inline-block; min-width:34px; text-align:center; padding:3px 6px; margin:2px; border-radius:6px; background:#f2f4f6; font-size:11px; }
+  .btn.on { background:#3182f6; color:#fff; }
+  .hint { background:#fff8e1; border:1px solid #ffe08a; border-radius:12px; padding:12px; font-size:13px; color:#4e5968; }
+</style>
+</head>
+<body>
+  <h1>🎮 Gamepad API 진단</h1>
+  <div class="sub">이 페이지가 열린 주소(origin)에서 게임패드 입력이 잡히는지 확인합니다. 노트북에 패드를 연결하고 <b>아무 버튼이나 한 번</b> 누르세요.</div>
+
+  <div class="card">
+    <div class="row"><span>현재 주소(origin)</span><span class="mono" id="origin"></span></div>
+    <div class="row"><span>Secure Context (HTTPS/localhost)</span><span id="secure"></span></div>
+    <div class="row"><span>navigator.getGamepads 지원</span><span id="api"></span></div>
+    <div class="row"><span>브라우저</span><span class="mono" id="ua"></span></div>
+    <div class="row"><span>연결된 게임패드</span><span id="count" class="mono">0</span></div>
+  </div>
+
+  <div id="verdict" class="hint" style="display:none"></div>
+  <div id="pads"></div>
+
+<script>
+const BTN = ['A','B','X','Y','LB','RB','LT','RT','Select','Start','LS','RS','Up','Down','Left','Right','Home'];
+document.getElementById('origin').textContent = location.origin;
+document.getElementById('ua').textContent = navigator.userAgent.slice(0,60);
+const secEl = document.getElementById('secure'), apiEl = document.getElementById('api');
+secEl.innerHTML = window.isSecureContext ? '<span class="ok">예</span>' : '<span class="bad">아니오</span>';
+const hasApi = typeof navigator.getGamepads === 'function';
+apiEl.innerHTML = hasApi ? '<span class="ok">있음</span>' : '<span class="bad">없음</span>';
+
+const verdict = document.getElementById('verdict');
+if (!hasApi) { verdict.style.display='block'; verdict.innerHTML='❌ 이 브라우저/컨텍스트에서 Gamepad API 자체가 없습니다.'; }
+else if (!window.isSecureContext) { verdict.style.display='block'; verdict.innerHTML='⚠ <b>Secure Context 아님(http LAN)</b>. 일부 브라우저(특히 Chrome)는 이 경우 게임패드를 노출하지 않을 수 있습니다. 아래에서 패드가 안 잡히면 → HTTPS 서빙 또는 localhost 접속이 필요합니다. (잡히면 그대로 사용 가능)'; }
+
+const padsEl = document.getElementById('pads');
+const ui = new Map();
+
+function build(gp){
+  const d = document.createElement('div'); d.className='card';
+  d.innerHTML = `<div class="row"><b>#${gp.index}</b> <span class="mono">${gp.id.slice(0,50)}</span></div>
+    <div class="row"><span>mapping</span><span class="${gp.mapping==='standard'?'ok':'warn'}">${gp.mapping||'(none)'}</span></div>
+    <div class="row"><span>축 ${gp.axes.length} · 버튼 ${gp.buttons.length}</span><span></span></div>
+    <div class="axes" style="margin-top:8px"></div><div class="btns" style="margin-top:8px"></div>`;
+  padsEl.appendChild(d);
+  const axes=[]; const aw=d.querySelector('.axes');
+  gp.axes.forEach((_,i)=>{ const r=document.createElement('div'); r.style.margin='4px 0';
+    r.innerHTML=`<span class="mono">axis${i}</span> <div class="bar"><i></i></div> <span class="mono val">0</span>`;
+    aw.appendChild(r); axes.push({bar:r.querySelector('i'), val:r.querySelector('.val')}); });
+  const btns=[]; const bw=d.querySelector('.btns');
+  gp.buttons.forEach((_,i)=>{ const b=document.createElement('span'); b.className='btn'; b.textContent=BTN[i]||i; bw.appendChild(b); btns.push(b); });
+  ui.set(gp.index,{axes,btns});
+}
+function refreshCount(){ let n=0; for(const g of navigator.getGamepads()) if(g) n++; document.getElementById('count').textContent=n; }
+addEventListener('gamepadconnected', e=>{ if(!ui.has(e.gamepad.index)) build(e.gamepad); refreshCount(); });
+addEventListener('gamepaddisconnected', refreshCount);
+
+function loop(){
+  requestAnimationFrame(loop);
+  if(!hasApi) return;
+  for(const gp of navigator.getGamepads()){
+    if(!gp) continue; if(!ui.has(gp.index)) build(gp);
+    const u=ui.get(gp.index);
+    gp.axes.forEach((v,i)=>{ const a=u.axes[i]; if(!a)return; if(v>=0){a.bar.style.left='50%';a.bar.style.width=(v*50)+'%';}else{a.bar.style.left=(50+v*50)+'%';a.bar.style.width=(-v*50)+'%';} a.val.textContent=v.toFixed(3); });
+    gp.buttons.forEach((b,i)=>{ const el=u.btns[i]; if(el) el.classList.toggle('on', b.pressed); });
+  }
+  refreshCount();
+}
+loop();
+</script>
+</body>
+</html>
