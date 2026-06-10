@@ -909,10 +909,11 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
       if (!g) { setGp(null); if (prev.dead) { send(0, 0, 0); prev.dead = false; } return; }
       const lt = g.buttons[6]?.value ?? 0;          // 왼쪽 트리거 = 데드맨
       const deadman = lt > 0.05;
+      const holo = g.buttons[5]?.pressed ?? false;  // RB = 횡이동(y) 활성 모디파이어
       setGp({ id: g.id, deadman, axes: Array.from(g.axes), buttons: g.buttons.map((b) => ({ p: b.pressed, v: b.value })) });
       if (deadman) {
         const x = -dz(g.axes[1] ?? 0) * maxLin;     // 좌스틱 위=전진(+x)
-        const y = -dz(g.axes[0] ?? 0) * maxLin;     // 좌스틱 좌=+y
+        const y = holo ? -dz(g.axes[0] ?? 0) * maxLin : 0;  // RB 누를 때만 좌스틱 좌=+y
         const z = -dz(g.axes[2] ?? 0) * maxYaw;     // 우스틱 우=시계(-z)
         send(x, y, z); prev.dead = true;
       } else if (prev.dead) { send(0, 0, 0); prev.dead = false; }
@@ -970,7 +971,8 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
                     </span>
                   ))}
                 </div>
-                <div className="mt-2 font-mono text-xs text-ink-soft">x{pub.x.toFixed(2)} y{pub.y.toFixed(2)} z{pub.z.toFixed(2)} · LT 누른 채 좌=이동 우=회전</div>
+                <div className="mt-2 font-mono text-xs text-ink-soft">x{pub.x.toFixed(2)} y{pub.y.toFixed(2)} z{pub.z.toFixed(2)}</div>
+                <div className="text-[11px] text-ink-faint">LT 누른 채: 좌스틱 전후 + 우스틱 회전 · <b className={cn(gp.buttons[5]?.p && "text-brand-600")}>RB 추가로 누르면 횡이동(y)</b></div>
               </>
             ) : (
               <div className="py-3 text-center text-xs text-ink-faint">게임패드 미감지 — 패드 연결 후 아무 버튼이나 누르세요</div>
