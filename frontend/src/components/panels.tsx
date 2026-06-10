@@ -28,6 +28,12 @@ export type Panel = {
   cmdTopic?: string;
   // camera
   camTopic?: string;
+  // launch (선택 고정 — 스냅샷에 저장)
+  launchMachine?: "server" | "controller";
+  launchPkg?: string;
+  launchFile?: string;
+  launchArgs?: string;
+  launchSelected?: boolean;   // true 면 고른 런치 1개만 표시(실행/수정)
 };
 
 export type Topic = { topic: string; types: string[]; publishers: number; subscribers: number; plottable: boolean };
@@ -431,14 +437,18 @@ function validateLaunchArgs(s: string): string {
   }
   return "";
 }
-export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () => void; canRemove: boolean }) {
+export function LaunchWidget({ panel, onChange, onRemove, canRemove }: {
+  panel: Panel; onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
+}) {
   const processes = useTb((s) => s.processes);
-  const [machine, setMachine] = useState<"server" | "controller">("server");
+  const selected = !!panel.launchSelected;        // 고정(선택) 모드 여부
+  const [machineState, setMachineState] = useState<"server" | "controller">(panel.launchMachine === "controller" ? "controller" : "server");
+  const machine: "server" | "controller" = selected ? (panel.launchMachine === "controller" ? "controller" : "server") : machineState;
   const [files, setFiles] = useState<{ package: string; file: string; path: string }[]>([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [profiles, setProfiles] = useState<any[]>([]);
-  const [argsBy, setArgsBy] = useState<Record<string, string>>({});
+  const [argsBy, setArgsBy] = useState<Record<string, string>>({});  // 브라우즈 모드 파일별 인자 초안
   const [confirm, setConfirm] = useState<{ f: { package: string; file: string }; args: string } | null>(null);
   const [killSel, setKillSel] = useState<Set<string>>(new Set());
   const [msg, setMsg] = useState("");
@@ -447,12 +457,20 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
     setLoading(true);
     try { setFiles(await api.launchFiles(machine)); } catch { setFiles([]); } finally { setLoading(false); }
   };
-  useEffect(() => { loadFiles(); /* eslint-disable-next-line */ }, [machine]);
+  useEffect(() => { if (!selected) loadFiles(); /* eslint-disable-next-line */ }, [machine, selected]);
   const loadProfiles = () => api.profiles().then(setProfiles).catch(() => {});
   useEffect(() => { loadProfiles(); }, []);
 
   // testbench 가 직접 기동·관리(생명주기 추적) 중인 프로세스 (WS 실시간), 선택 머신 기준
   const mineRunning = processes.filter((p) => p.machine === machine);
+
+  // 런치 + 인자를 패널에 고정(스냅샷 저장). 인자 파싱 실패 시 고정하지 않음.
+  const select = (f: { package: string; file: string }, args: string) => {
+    const err = validateLaunchArgs(args);
+    if (err) { setMsg(`인자 오류 — ${err}`); return; }
+    onChange({ launchSelected: true, launchMachine: machine, launchPkg: f.package, launchFile: f.file, launchArgs: args.trim() });
+    setMsg("");
+  };
 
   const run = async (f: { package: string; file: string }, args: string) => {
     setMsg(`실행 요청: ${f.package} ${f.file}${args.trim() ? " " + args.trim() : ""}`);
@@ -490,16 +508,32 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
 
   return (
     <Shell title="런치" onRemove={onRemove} canRemove={canRemove}
-      head={
+      head={!selected && (
         <div className="flex rounded-lg bg-surface-muted p-0.5 text-xs">
           {(["server", "controller"] as const).map((m) => (
-            <button key={m} onClick={() => setMachine(m)}
+            <button key={m} onClick={() => setMachineState(m)}
               className={cn("rounded-md px-2 py-0.5", machine === m ? "bg-surface text-ink shadow-card" : "text-ink-faint")}>
               {m === "server" ? "서버(202)" : "컨트롤러(201)"}
             </button>
           ))}
         </div>
-      }>
+      )}>
+      {selected ? (
+        /* ── 고정(선택) 모드: 고른 런치 1개 + 실행/수정 ── */
+        <div className="rounded-xl border border-surface-line bg-surface-muted p-3">
+          <div className="text-[11px] font-medium text-ink-faint">선택된 런치 ({machine === "server" ? "서버 202" : "컨트롤러 201"})</div>
+          <div className="mt-1 break-all font-mono text-sm text-ink">{panel.launchPkg} / {panel.launchFile}</div>
+          <div className="mt-0.5 break-all font-mono text-[11px] text-ink-soft">
+            {panel.launchArgs?.trim() ? panel.launchArgs : <span className="text-ink-faint">인자 없음</span>}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button onClick={() => requestRun({ package: panel.launchPkg || "", file: panel.launchFile || "" }, panel.launchArgs ?? "")}
+              className="flex-1 rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-semibold text-white">실행</button>
+            <button onClick={() => onChange({ launchSelected: false })}
+              className="rounded-lg bg-surface px-3 py-1.5 text-sm font-medium text-ink-soft shadow-card hover:bg-surface-line">수정</button>
+          </div>
+        </div>
+      ) : (<>
       {/* 프로파일 묶음 */}
       {profiles.filter((p) => !p.persistent).length > 0 && (
         <div className="mb-3">
@@ -515,7 +549,7 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
         </div>
       )}
 
-      {/* 발견된 런치 파일 */}
+      {/* 발견된 런치 파일 — 인자 입력 후 '선택'으로 패널에 고정 */}
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`런치 파일 검색 (${filtered.length}/${files.length})`}
         className="mb-2 w-full rounded-lg border border-surface-line px-2 py-1 text-xs" />
       <div className="max-h-48 overflow-auto rounded-lg border border-surface-line divide-y divide-surface-line">
@@ -529,8 +563,8 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
             <div key={key} className="px-2 py-1.5 text-xs">
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1 truncate"><span className="text-ink-faint">{f.package}</span> / {f.file}</div>
-                <button onClick={() => requestRun(f, a)} disabled={!!err}
-                  className="shrink-0 rounded bg-brand-50 px-2 py-0.5 font-medium text-brand-700 disabled:opacity-40">실행</button>
+                <button onClick={() => select(f, a)} disabled={!!err}
+                  className="shrink-0 rounded bg-brand-500 px-2 py-0.5 font-medium text-white disabled:opacity-40">선택</button>
               </div>
               <input value={a} onChange={(e) => setArgsBy((m) => ({ ...m, [key]: e.target.value }))}
                 placeholder="인자(선택): use_velocity_smoother:=false ekf_enable:=false"
@@ -540,6 +574,7 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
           );
         })}
       </div>
+      </>)}
 
       {/* 실행 중 프로세스 (testbench 관리, WS 실시간) */}
       <div className="mt-3 mb-1 text-[11px] font-medium text-ink-faint">실행 중 프로세스 ({machine === "server" ? "202" : "201"} · testbench 관리)</div>
