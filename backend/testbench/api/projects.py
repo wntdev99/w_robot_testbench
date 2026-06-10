@@ -6,13 +6,17 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from testbench.api.common import HTTP_CONFLICT, HTTP_NOT_FOUND, ok, raise_http
-from testbench.projects.runner import run_project, stop_project
+from testbench.projects.runner import run_decision, run_project, stop_project
 
 router = APIRouter()
 
 
 class DuplicateBody(BaseModel):
     name: str | None = None
+
+
+class DecisionBody(BaseModel):
+    action: str  # kill | keep | abort
 
 
 @router.get("/api/projects")
@@ -34,7 +38,20 @@ async def run_project_ep(request: Request, project_id: str) -> dict:
     p = s.project_store.get(project_id)
     if not p:
         raise_http("not_found", f"project not found: {project_id}", HTTP_NOT_FOUND)
-    result = await run_project(s.process_manager, s.bridge, s.ws_manager, p, s.config.baseline)
+    on_orphan = p.get("policy", {}).get("on_orphan", "ask")
+    result = await run_project(s.process_manager, s.bridge, s.ws_manager, p, s.config.baseline, on_orphan)
+    return ok(result)
+
+
+@router.post("/api/projects/{project_id}/run/decision")
+async def run_decision_ep(request: Request, project_id: str, body: DecisionBody) -> dict:
+    s = request.app.state
+    p = s.project_store.get(project_id)
+    if not p:
+        raise_http("not_found", f"project not found: {project_id}", HTTP_NOT_FOUND)
+    if body.action not in ("kill", "keep", "abort"):
+        raise_http("bad_action", "action must be kill|keep|abort", HTTP_CONFLICT)
+    result = await run_decision(s.process_manager, s.bridge, s.ws_manager, p, s.config.baseline, body.action)
     return ok(result)
 
 
