@@ -84,6 +84,12 @@ def _remote_stats(user: str, host: str) -> dict | None:
         return None
 
 
+@router.get("/api/processes")
+async def owned_processes(request: Request) -> dict:
+    """owned-registry — 백엔드가 기동한 프로세스 (DESIGN §7.1, 부속 D §5)."""
+    return ok({"owned": request.app.state.process_manager.status()})
+
+
 @router.get("/api/system/controller")
 async def controller_status(request: Request) -> dict:
     """201 토폴로지 — 연결 상태 + stats (on-demand, system_status 폴링 부담 회피)."""

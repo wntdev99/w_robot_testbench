@@ -47,7 +47,10 @@ def project_orphans(pm, project: dict, baseline_cfg: list[dict]) -> list[str]:
     baseline/persistent(zenoh)는 desired에 포함되어 보존된다.
     """
     desired = {b["id"] for b in baseline_cfg} | {p["id"] for p in project.get("processes", [])}
-    return [op.id for op in pm.owned.values() if op.id not in desired]
+    orphans = [op.id for op in pm.owned.values() if op.id not in desired]
+    logger.info("orphan check %s: owned=%s desired=%s → %s",
+                project.get("id"), list(pm.owned), sorted(desired), orphans)
+    return orphans
 
 
 async def run_project(pm, bridge, ws, project: dict, baseline_cfg: list[dict],
