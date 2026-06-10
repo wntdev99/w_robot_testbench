@@ -3,6 +3,14 @@
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
+// WS URL — rewrites는 WS 미프록시. API_BASE 설정 시 백엔드로 직접(ws://host:8080/api/ws).
+export function wsUrl(path: string): string {
+  const base = process.env.NEXT_PUBLIC_API_BASE;
+  if (base) return base.replace(/^http/, "ws") + path;
+  const proto = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${proto}://${window.location.host}${path}`;
+}
+
 export type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {

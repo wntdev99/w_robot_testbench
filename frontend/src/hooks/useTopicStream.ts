@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { wsUrl } from "@/lib/api";
 
 // 위젯별 독립 WS 연결(P1 단순화). 최적화(단일 WS 멀티플렉싱)는 후순위.
 export function useTopicStream(topic: string | undefined, samples = 200) {
@@ -12,8 +13,7 @@ export function useTopicStream(topic: string | undefined, samples = 200) {
   useEffect(() => {
     if (!topic) return;
     if (startRef.current === 0) startRef.current = performance.now();
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const url = `${proto}://${window.location.host}/api/ws`;
+    const url = wsUrl("/api/ws");
     let ws: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout>;
 

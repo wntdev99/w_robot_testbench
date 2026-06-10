@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { wsUrl } from "@/lib/api";
 
 export type WsEvent = { type: string; ts: string; data: unknown };
 
@@ -12,8 +13,7 @@ export function useWebSocket(onEvent?: (e: WsEvent) => void) {
   cbRef.current = onEvent;
 
   useEffect(() => {
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const url = `${proto}://${window.location.host}/api/ws`;
+    const url = wsUrl("/api/ws");
     let ws: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout>;
 
