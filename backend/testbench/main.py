@@ -113,7 +113,7 @@ def build_app() -> FastAPI:
     app = FastAPI(title="w_robot_testbench", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?",
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?",
         allow_methods=["*"], allow_headers=["*"], allow_credentials=True,
     )
     for r in (system.router, profiles.router, topics.router, emergency.router, snapshots.router, recordings.router, camera.router, nav.router, admin.router, ws_api.router):
@@ -133,26 +133,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=None)
-    parser.add_argument("--no-tls", action="store_true", help="HTTPS 비활성(개발용)")
     args = parser.parse_args()
     cfg = load_config()
-    ssl_args: dict = {}
-    tls = cfg.raw.get("server", {}).get("tls", {})
-    tls_enabled = tls.get("enabled", True) and not args.no_tls
-    if tls_enabled:
-        from .tls import ensure_self_signed
-        certs = ensure_self_signed([cfg.server.host])
-        if certs:
-            ssl_args = {"ssl_certfile": certs[0], "ssl_keyfile": certs[1]}
-            logger.info("HTTPS 활성 (자체서명) — https://<host>:%s", args.port or cfg.server_port)
-        else:
-            logger.warning("인증서 생성 실패 → HTTP 로 폴백")
     uvicorn.run(
         "testbench.main:build_app",
         factory=True,
         host=args.host or cfg.server_host,
         port=args.port or cfg.server_port,
-        **ssl_args,
     )
 
 

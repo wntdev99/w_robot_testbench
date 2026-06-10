@@ -2,8 +2,6 @@
 server:
   host: 0.0.0.0
   port: 8080
-  tls:
-    enabled: true   # 자체서명 HTTPS (게임패드 등 secure-context API). 개발은 --no-tls
 
 machines:
   server:                       # 웹툴이 도는 머신 (PC1)
