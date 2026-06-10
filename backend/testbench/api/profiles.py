@@ -54,7 +54,11 @@ class RunLaunchBody(BaseModel):
 
 @router.post("/launch/run")
 async def run_launch(body: RunLaunchBody, request: Request):
-    return await request.app.state.ctx.orch.run_launch(body.machine, body.package, body.file, body.args)
+    try:
+        return await request.app.state.ctx.orch.run_launch(body.machine, body.package, body.file, body.args)
+    except ValueError as exc:
+        # 런치 인자 파싱 실패 → 실행하지 않고 400 으로 거부
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 class StopBody(BaseModel):

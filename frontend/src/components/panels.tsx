@@ -419,6 +419,18 @@ const STATE_COLOR: Record<string, string> = {
   running: "text-ok", external: "text-brand-600", starting: "text-warn",
   stopping: "text-warn", failed: "text-danger",
 };
+// ros2 launch 인자 검증(백엔드 parse_launch_args 와 동일 규칙의 가벼운 클라 버전).
+// 빈 문자열=인자 없음(정상). 위반 토큰이 있으면 사유 문자열, 정상이면 "".
+function validateLaunchArgs(s: string): string {
+  const t = s.trim();
+  if (!t) return "";
+  for (const tok of t.split(/\s+/)) {
+    const i = tok.indexOf(":=");
+    if (i < 0) return `'${tok}': 'name:=value' 형식이어야 합니다`;
+    if (i === 0) return `'${tok}': 인자 이름이 비어 있습니다`;
+  }
+  return "";
+}
 export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: () => void; canRemove: boolean }) {
   const processes = useTb((s) => s.processes);
   const [machine, setMachine] = useState<"server" | "controller">("server");
@@ -426,6 +438,9 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [argsBy, setArgsBy] = useState<Record<string, string>>({});
+  const [confirm, setConfirm] = useState<{ f: { package: string; file: string }; args: string } | null>(null);
+  const [killSel, setKillSel] = useState<Set<string>>(new Set());
   const [msg, setMsg] = useState("");
 
   const loadFiles = async () => {
@@ -439,9 +454,32 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
   // testbench 가 직접 기동·관리(생명주기 추적) 중인 프로세스 (WS 실시간), 선택 머신 기준
   const mineRunning = processes.filter((p) => p.machine === machine);
 
-  const run = async (f: { package: string; file: string }) => {
-    setMsg(`실행 요청: ${f.package} ${f.file}`);
-    try { await api.runLaunch(machine, f.package, f.file); } catch (e) { setMsg(String(e)); }
+  const run = async (f: { package: string; file: string }, args: string) => {
+    setMsg(`실행 요청: ${f.package} ${f.file}${args.trim() ? " " + args.trim() : ""}`);
+    try {
+      await api.runLaunch(machine, f.package, f.file, args.trim());
+    } catch (e: any) {
+      // 백엔드 400(인자 거부) 메시지 정제: "400 {\"detail\":\"...\"}" → detail
+      const m = String(e?.message ?? e);
+      try { setMsg(JSON.parse(m.replace(/^\d+\s/, "")).detail ?? m); } catch { setMsg(m); }
+    }
+  };
+  // 실행 전 게이트: 패널로 띄운 adhoc 런치가 있으면 확인 팝업, 없으면 바로 실행
+  const requestRun = (f: { package: string; file: string }, args: string) => {
+    const err = validateLaunchArgs(args);
+    if (err) { setMsg(`인자 오류 — ${err}`); return; }   // 파싱 실패 시 실행하지 않음
+    const existing = processes.filter((p) => p.machine === machine && p.profile_id === "adhoc");
+    if (existing.length === 0) { run(f, args); return; }
+    const key = `${f.package}/${f.file}`;
+    setKillSel(new Set(existing.filter((p) => p.proc_id === key).map((p) => p.id)));  // 충돌은 기본 선택
+    setConfirm({ f, args });
+  };
+  // 선택한 런치 종료 후 이어서 실행
+  const proceed = async (killIds: string[]) => {
+    const c = confirm; if (!c) return;
+    setConfirm(null);
+    for (const id of killIds) { try { await api.stopProcess(id); } catch (e) { setMsg(String(e)); } }
+    await run(c.f, c.args);
   };
   const stop = async (id: string) => { try { await api.stopProcess(id); } catch (e) { setMsg(String(e)); } };
   const toggleProfile = async (p: any) => {
@@ -483,12 +521,24 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
       <div className="max-h-48 overflow-auto rounded-lg border border-surface-line divide-y divide-surface-line">
         {loading && <div className="p-2 text-xs text-ink-faint">스캔 중…</div>}
         {!loading && filtered.length === 0 && <div className="p-2 text-xs text-ink-faint">런치 파일 없음</div>}
-        {filtered.map((f) => (
-          <div key={f.package + "/" + f.file} className="flex items-center gap-2 px-2 py-1.5 text-xs">
-            <div className="min-w-0 flex-1 truncate"><span className="text-ink-faint">{f.package}</span> / {f.file}</div>
-            <button onClick={() => run(f)} className="shrink-0 rounded bg-brand-50 px-2 py-0.5 font-medium text-brand-700">실행</button>
-          </div>
-        ))}
+        {filtered.map((f) => {
+          const key = f.package + "/" + f.file;
+          const a = argsBy[key] ?? "";
+          const err = validateLaunchArgs(a);
+          return (
+            <div key={key} className="px-2 py-1.5 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1 truncate"><span className="text-ink-faint">{f.package}</span> / {f.file}</div>
+                <button onClick={() => requestRun(f, a)} disabled={!!err}
+                  className="shrink-0 rounded bg-brand-50 px-2 py-0.5 font-medium text-brand-700 disabled:opacity-40">실행</button>
+              </div>
+              <input value={a} onChange={(e) => setArgsBy((m) => ({ ...m, [key]: e.target.value }))}
+                placeholder="인자(선택): use_velocity_smoother:=false ekf_enable:=false"
+                className={cn("mt-1 w-full rounded border px-1.5 py-0.5 font-mono text-[11px] outline-none", err ? "border-danger text-danger" : "border-surface-line")} />
+              {err && <div className="mt-0.5 text-[10px] text-danger">{err}</div>}
+            </div>
+          );
+        })}
       </div>
 
       {/* 실행 중 프로세스 (testbench 관리, WS 실시간) */}
@@ -506,6 +556,44 @@ export function LaunchWidget({ onRemove, canRemove }: { panel: Panel; onRemove: 
         ))}
       </div>
       {msg && <div className="mt-2 break-all text-xs text-ink-faint">{msg}</div>}
+
+      {/* 실행 전 확인 팝업 — 패널로 띄운 adhoc 런치(baseline 제외) 정리 */}
+      {confirm && (() => {
+        const key = `${confirm.f.package}/${confirm.f.file}`;
+        const list = processes.filter((p) => p.machine === machine && p.profile_id === "adhoc");
+        const toggle = (id: string) => setKillSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+        const hasConflict = list.some((p) => p.proc_id === key);
+        return (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-ink/40 p-4" onClick={() => setConfirm(null)}>
+            <div className="w-full max-w-md rounded-2xl bg-surface p-5 shadow-card" onClick={(e) => e.stopPropagation()}>
+              <div className="text-base font-bold">런치 실행 전 확인</div>
+              <p className="mt-1 text-sm text-ink-soft">실행: <b>{confirm.f.package}/{confirm.f.file}</b>
+                {confirm.args.trim() && <span className="font-mono text-xs text-ink-faint"> {confirm.args.trim()}</span>}</p>
+              {hasConflict && <p className="mt-1 text-xs text-danger">⚠ 같은 런치가 이미 실행 중입니다(충돌). 종료 후 재실행을 권장합니다.</p>}
+              <p className="mt-2 text-xs text-ink-faint">패널에서 추가로 실행 중인 런치(baseline 제외)입니다. 종료할 항목을 선택하세요.</p>
+              <div className="mt-3 max-h-48 divide-y divide-surface-line overflow-auto rounded-xl border border-surface-line">
+                {list.map((p) => {
+                  const conflict = p.proc_id === key;
+                  return (
+                    <label key={p.id} className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs">
+                      <input type="checkbox" checked={killSel.has(p.id)} onChange={() => toggle(p.id)} />
+                      <span className="min-w-0 flex-1 truncate font-mono text-ink-soft">{p.proc_id}</span>
+                      {conflict && <span className="shrink-0 rounded bg-danger/10 px-1.5 py-0.5 text-[10px] font-medium text-danger">충돌</span>}
+                      <span className="shrink-0 text-ink-faint">{p.machine === "controller" ? "201" : "202"}{p.pid ? ` ·${p.pid}` : ""}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <button onClick={() => setConfirm(null)} className="rounded-xl bg-surface-muted px-3 py-2 text-sm text-ink-soft hover:bg-surface-line">취소</button>
+                <button onClick={() => proceed([])} className="rounded-xl bg-surface-muted px-3 py-2 text-sm font-medium text-ink hover:bg-surface-line">그대로 실행</button>
+                <button onClick={() => proceed([...killSel])} disabled={killSel.size === 0}
+                  className="rounded-xl bg-brand-500 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40">선택 종료 후 실행</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </Shell>
   );
 }

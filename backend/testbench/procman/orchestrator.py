@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shlex
 import time
 
 from ..config import Config, Profile
@@ -21,6 +22,28 @@ from .types import ProcRecord, ProcState
 from .zenoh import ZenohManager
 
 logger = logging.getLogger("testbench.procman.orch")
+
+
+def parse_launch_args(args: str) -> list[str]:
+    """`ros2 launch` 인자 문자열을 토큰으로 파싱·검증한다(ros2 와 동일 규칙).
+
+    - `shlex.split` 으로 따옴표/이스케이프까지 처리(따옴표 불균형 → 파싱 실패).
+    - 각 토큰은 `name:=value` 형식이어야 한다(`:=` 포함 + 이름 비어있지 않음).
+    위반 시 ValueError 를 던져 호출부가 실행을 거부하도록 한다.
+    """
+    if not args or not args.strip():
+        return []
+    try:
+        tokens = shlex.split(args)
+    except ValueError as exc:
+        raise ValueError(f"인자 파싱 실패(따옴표 확인): {exc}") from exc
+    for tok in tokens:
+        if ":=" not in tok:
+            raise ValueError(f"잘못된 런치 인자 '{tok}': 'name:=value' 형식이어야 합니다")
+        name = tok.split(":=", 1)[0]
+        if not name:
+            raise ValueError(f"잘못된 런치 인자 '{tok}': 인자 이름이 비어 있습니다")
+    return tokens
 
 
 class Orchestrator:
@@ -299,7 +322,10 @@ class Orchestrator:
 
     # ── ad-hoc 런치 실행/종료 (프로파일과 무관한 단건) ──
     async def run_launch(self, machine: str, package: str, file: str, args: str = "") -> dict:
-        cmd = f"ros2 launch {package} {file} {args}".strip()
+        # ros2 launch 인자(name:=value)를 파싱·검증 — 실패하면 레코드 생성 전 거부(ValueError).
+        # 각 토큰을 shlex.quote 로 감싸 셸 인젝션 차단.
+        tokens = parse_launch_args(args)
+        cmd = " ".join(shlex.quote(p) for p in ["ros2", "launch", package, file, *tokens])
         self._adhoc_seq += 1
         rid = f"adhoc:{self._adhoc_seq}"
         rec = ProcRecord(id=rid, profile_id="adhoc", proc_id=f"{package}/{file}",
