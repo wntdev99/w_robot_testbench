@@ -19,6 +19,9 @@ export default function ProjectRunPage() {
 
   const onRun = async () => { setBusy(true); try { setRun(await api.runProject(id)); } catch { /* ws */ } finally { setBusy(false); } };
   const onStop = async () => { setBusy(true); try { await api.stopProject(id); setRun(null); } finally { setBusy(false); } };
+  const onDecision = async (action: "kill" | "keep" | "abort") => {
+    setBusy(true); try { setRun(await api.runDecision(id, action)); } finally { setBusy(false); }
+  };
   const onDuplicate = async () => { const d = await api.duplicateProject(id); setId(d.id); setProject(d); setEditing(true); };
   const onDelete = async () => { if (confirm("이 프로젝트를 삭제할까요?")) { await api.deleteProject(id); router.push("/projects"); } };
 
@@ -62,11 +65,24 @@ export default function ProjectRunPage() {
         </div>
       </div>
 
-      {run && (
+      {run?.state === "confirm_required" && (
+        <div className="rounded-card border border-warn bg-warn/10 p-3 text-sm space-y-2">
+          <div>⚠️ 관리되지 않는 잔여 프로세스 {run.orphans?.length ?? 0}개:
+            <span className="text-muted"> {(run.orphans ?? []).join(", ")}</span></div>
+          <div className="flex gap-2">
+            <button onClick={() => onDecision("kill")} disabled={busy} className="px-3 py-1.5 rounded-card bg-danger text-white">종료 후 실행</button>
+            <button onClick={() => onDecision("keep")} disabled={busy} className="px-3 py-1.5 rounded-card bg-surface border border-border">유지하고 실행</button>
+            <button onClick={() => onDecision("abort")} disabled={busy} className="px-3 py-1.5 rounded-card bg-surface border border-border">취소</button>
+          </div>
+        </div>
+      )}
+      {run && run.state !== "confirm_required" && (
         <div className="rounded-card bg-surface border border-border p-3 text-sm">
           상태: <b className={run.state === "live" ? "text-ok" : "text-warn"}>{run.state}</b>
-          {run.missing.length > 0 && <span className="text-danger"> · 누락: {run.missing.map((m) => m.name).join(", ")}</span>}
-          <span className="text-muted"> · {run.processes.map((p) => `${p.id}(${p.status})`).join(", ")}</span>
+          {run.missing.length > 0 && (
+            <span className="text-danger"> · 누락: {run.missing.map((m) => `${m.name}(${m.reason ?? "?"})`).join(", ")} — 보강 후 재실행</span>
+          )}
+          <span className="text-muted"> · {run.processes?.map((p) => `${p.id}(${p.status})`).join(", ")}</span>
         </div>
       )}
 

@@ -45,6 +45,8 @@ export const api = {
   projects: () => req<{ projects: Project[] }>("/api/projects"),
   project: (id: string) => req<Project>(`/api/projects/${id}`),
   runProject: (id: string) => req<RunResult>(`/api/projects/${id}/run`, { method: "POST" }),
+  runDecision: (id: string, action: "kill" | "keep" | "abort") =>
+    req<RunResult>(`/api/projects/${id}/run/decision`, { method: "POST", body: JSON.stringify({ action }) }),
   stopProject: (id: string) => req<{ stopped: string[] }>(`/api/projects/${id}/stop`, { method: "POST" }),
   publish: (topic: string, type: string, values: Record<string, unknown>) =>
     req("/api/publish", { method: "POST", body: JSON.stringify({ topic, type, values }) }),
@@ -79,6 +81,7 @@ export type Project = {
 export type RunResult = {
   id: string; state: string;
   processes: { id: string; status: string }[];
-  missing: { kind: string; name: string; widget?: string }[];
+  missing: { kind: string; name: string; widget?: string; reason?: string }[];
+  orphans?: string[];
 };
 export type BaselineItem = { id: string; machine: string; running: boolean; owned: boolean };

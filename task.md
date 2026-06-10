@@ -54,7 +54,13 @@
 - [ ] **P4 러너+자산화** — runner(cycle/sequence)·record(CSV/JSON·counters·수동 verdict)·데이터 자산 페이지
 - [ ] **P5 전장부+진단+카메라** — BMS/Elyx 위젯·diagnostics·CAN 진단 / MJPEG/WebRTC·fps·USB허브
 
-### P2 (프로젝트 저작 UI) — 진행 중
+### P3 (수렴·preflight 완성) — 진행 중
+- [x] reconciler — orphan diff + confirm_required/decision(kill·keep·abort) (`628c505`)
+- [x] preflight 발행 검증(publisher_count) + 난입 주기 감지(intrusion_monitor) (`6b4ebcc`)
+- [x] 프론트 — confirm 다이얼로그 + report_missing(reason) (빌드 ✅)
+- [ ] P3 202 통합 검증 (프로젝트A live → 빈 프로젝트 run → orphan confirm → kill 후 수렴)
+
+### P2 (프로젝트 저작 UI) — ✅ 완료
 - [x] introspect API (`c9667eb`) — /api/topics·services·types/{type}/fields
 - [x] 프로젝트 CRUD (`c9667eb`) — user 쓰기(~/.w_robot_testbench), create/update/delete/duplicate
 - [x] 레이아웃 빌더 — 위젯 팔레트·편집·저장 + 복제/삭제/새프로젝트, 빌드 ✅
