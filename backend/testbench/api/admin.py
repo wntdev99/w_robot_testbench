@@ -14,6 +14,19 @@ async def get_plan(request: Request):
     return request.app.state.ctx.orch.get_plan()
 
 
+@router.get("/status")
+async def status(request: Request):
+    """부팅 시작 플랜 대기 여부 + 플랜(프론트 팝업용)."""
+    orch = request.app.state.ctx.orch
+    return {"startup_pending": orch.startup_pending, "plan": orch.get_plan()}
+
+
+@router.post("/dismiss")
+async def dismiss(request: Request):
+    """시작 플랜 실행 없이 대기 해제(건너뛰기)."""
+    return request.app.state.ctx.orch.dismiss_startup()
+
+
 class Plan(BaseModel):
     auto_on_boot: bool = True
     kill_on_start: bool = True
@@ -30,6 +43,7 @@ async def put_plan(plan: Plan, request: Request):
 async def apply(request: Request):
     """시작 플랜을 백그라운드로 실행(기존 ros2 종료 → 순서/간격대로 기동)."""
     orch = request.app.state.ctx.orch
+    orch.startup_pending = False
     asyncio.create_task(orch.run_startup_plan())
     return {"ok": True, "started": True}
 

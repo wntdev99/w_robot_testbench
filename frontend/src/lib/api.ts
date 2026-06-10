@@ -50,6 +50,8 @@ export const api = {
   adminSavePlan: (plan: any) => req<any>("/api/admin/plan", { method: "PUT", body: JSON.stringify(plan) }),
   adminApply: () => req<any>("/api/admin/apply", { method: "POST" }),
   adminKill: (scope: string[]) => req<any>("/api/admin/kill", { method: "POST", body: JSON.stringify({ scope }) }),
+  adminStatus: () => req<{ startup_pending: boolean; plan: any }>("/api/admin/status"),
+  adminDismiss: () => req<any>("/api/admin/dismiss", { method: "POST" }),
   topics: (includeHidden = false) =>
     req<{ topic: string; types: string[]; publishers: number; subscribers: number; plottable: boolean }[]>(
       `/api/topics?include_hidden=${includeHidden}`,

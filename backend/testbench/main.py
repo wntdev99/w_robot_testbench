@@ -92,8 +92,9 @@ async def lifespan(app: FastAPI):
 
     plan = orch.get_plan()
     if plan.get("auto_on_boot") and os.environ.get("TESTBENCH_NO_AUTOSTART") != "1":
-        logger.info("auto_on_boot=true → 시작 플랜 실행(기존 ros2 종료 후 기동)")
-        asyncio.create_task(orch.run_startup_plan())
+        # 파괴적(기존 ros2 종료 + baseline 기동)이므로 자동 실행 대신 대기 → 프론트가 팝업으로 승인
+        orch.startup_pending = True
+        logger.info("시작 플랜 대기(startup_pending). 웹 UI 팝업에서 승인 시 실행.")
     else:
         logger.info("부팅 자동기동 비활성. 관리자 탭에서 '적용'으로 실행.")
 

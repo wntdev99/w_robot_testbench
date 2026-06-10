@@ -45,6 +45,7 @@ class Orchestrator:
         self._records: dict[str, ProcRecord] = {}
         self._up_profiles: set[str] = set()
         self._adhoc_seq = 0
+        self.startup_pending = False   # 부팅 시 시작 플랜 실행 대기(프론트 팝업으로 승인)
         self._lock = asyncio.Lock()
 
     # ── 조회 ──
@@ -225,8 +226,13 @@ class Orchestrator:
             out["controller"] = "requested"
         return out
 
+    def dismiss_startup(self) -> dict:
+        self.startup_pending = False
+        return {"ok": True}
+
     async def run_startup_plan(self) -> dict:
         """기존 ros2 종료(옵션) → steps 순서·간격대로 기동. 서버 단독 관리 진입점."""
+        self.startup_pending = False
         plan = load_plan()
         async with self._lock:
             logger.info("=== 시작 플랜 실행 ===")
