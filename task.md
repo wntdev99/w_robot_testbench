@@ -31,6 +31,7 @@
 22. **P1 인프라 구현+202 검증** (`a482ff1`) — procman(spawn/kill/owned)·baseline 오케스트레이터·`/api/baseline`·`/api/system/controller`. 검증: idempotent skip ✅, 201 stats(loadavg/temp SSH) ✅, resolve kill ✅, baseline up spawn 순차 ✅. **발견: zenoh를 reconcile로 죽이면 백엔드 bridge 재연결 안 됨→healthcheck 먹통** → zenoh=인프라 전제(reconcile 예외)로 보정 필요(부속 D §2.5.1 기록)
 23. **zenoh 예외화 보정+재검증** (`67cecf3`) — OwnedProcess.persistent, baseline_down/boot_gate.resolve가 zenoh(rmw_zenohd) 보존. 재검증: zenoh 전제기동→baseline up `{zenoh:skipped, robot_urdf:ok, controller:ok}`(**healthcheck 통과, 이전 timeout 해결**)→풀스택 복구→down시 `zenoh ALIVE 보존`. **P1 인프라 완결**
 24. **P1 프로젝트 실행+plot+publish 구현+검증** (`5c2fb4f`) — store/runner/api/projects, subscriber_pool(WS 스트림), publisher_pool. 202 통합검증: `run→state:live`, **WS plot 수신 {joint_states:2, diagnostics:2}**, publish cmd_vel, stop 전부 ✅. (twist_mux healthcheck node 이름 미실측→timeout, 기능 무관)
+25. **P1 emergency+controller+프론트** (`3d83031`+) — emergency cmd_vel 0 발행, controller_manager switch. 프론트: 프로젝트 목록/실행 화면 + plot.topic(SVG 스파크라인)·diagnostics·control(Twist) 위젯 + useTopicStream. **빌드 ✅**(/projects, /projects/[id]). **P1 §11 핵심 완료** (잔여: twist_mux 실측·uPlot 고도화·브라우저 통합검증)
 
 ---
 
@@ -53,10 +54,11 @@
 - [ ] **P5 전장부+진단+카메라** — BMS/Elyx 위젯·diagnostics·CAN 진단 / MJPEG/WebRTC·fps·USB허브
 
 ### P1 잔여 (텔레옵 프로젝트)
+- [x] ~~controller switch~~ ✅ (`3d83031`) controller_manager list/switch service
+- [x] ~~emergency 실제 cmd_vel 0~~ ✅ (`3d83031`) cmd_vel 토픽 0 Twist 발행
+- [x] ~~프론트: 프로젝트 실행 화면 + 위젯~~ ✅ 목록/실행 화면 + plot.topic(SVG)·diagnostics·control 위젯 + useTopicStream, 빌드 통과
 - [ ] twist_mux healthcheck 노드/토픽 이름 실측 후 보정 (현 node:/twist_mux → timeout, P1 §12 라이브 실측)
-- [ ] controller switch (controller_manager service) — 직접명령(publish)은 완료
-- [ ] emergency 실제 cmd_vel 0 publish (현 stub)
-- [ ] 프론트: 프로젝트 실행 화면 + plot 위젯(uPlot) + control 위젯
+- [ ] plot 위젯 uPlot 고도화 (현 SVG 스파크라인) + 브라우저 통합 검증(emergency/controller 실로봇)
 
 ### 설계 잔여 (부속 D §8)
 - [x] ~~**zenoh reconcile 예외화**~~ ✅ (`67cecf3`) persistent 플래그로 boot_gate.resolve/baseline_down이 zenoh 보존. 재검증서 robot/control healthcheck 통과 확인

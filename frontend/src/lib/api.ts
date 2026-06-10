@@ -34,4 +34,30 @@ export const api = {
   bootResolve: (action: "kill" | "cancel") =>
     req("/api/boot/resolve", { method: "POST", body: JSON.stringify({ action }) }),
   emergencyStop: () => req("/api/emergency/stop", { method: "POST" }),
+  projects: () => req<{ projects: Project[] }>("/api/projects"),
+  project: (id: string) => req<Project>(`/api/projects/${id}`),
+  runProject: (id: string) => req<RunResult>(`/api/projects/${id}/run`, { method: "POST" }),
+  stopProject: (id: string) => req<{ stopped: string[] }>(`/api/projects/${id}/stop`, { method: "POST" }),
+  publish: (topic: string, type: string, values: Record<string, unknown>) =>
+    req("/api/publish", { method: "POST", body: JSON.stringify({ topic, type, values }) }),
+  baseline: () => req<{ baseline: BaselineItem[] }>("/api/baseline"),
+  baselineUp: () => req("/api/baseline/up", { method: "POST" }),
+  baselineDown: () => req("/api/baseline/down", { method: "POST" }),
 };
+
+export type Widget = {
+  id: string; kind: string; title: string;
+  pos: { x: number; y: number; w: number; h: number };
+  name?: string; type?: string; topic?: string; hardware_id_filter?: string;
+};
+export type Project = {
+  id: string; name: string; description?: string; origin: string;
+  layout?: { grid?: { cols: number; row_h: number }; widgets?: Widget[] };
+  processes?: unknown[]; runner?: { mode: string };
+};
+export type RunResult = {
+  id: string; state: string;
+  processes: { id: string; status: string }[];
+  missing: { kind: string; name: string; widget?: string }[];
+};
+export type BaselineItem = { id: string; machine: string; running: boolean; owned: boolean };
