@@ -1,11 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { RefreshCw, LayoutGrid, Cpu, Server, Activity, Save, Circle } from "lucide-react";
+import { LayoutGrid, Cpu, Server, Activity, Save, Circle } from "lucide-react";
 import { api, recordingDownloadUrl } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { Card, CardTitle } from "@/components/Card";
 import { cn } from "@/lib/cn";
+
+const STATE_COLOR: Record<string, string> = {
+  running: "text-ok", external: "text-brand-600", starting: "text-warn", stopping: "text-warn", failed: "text-danger",
+};
 
 function Stat({ ok, label, value }: { ok: boolean; label: string; value: string }) {
   return (
@@ -22,28 +26,17 @@ function Stat({ ok, label, value }: { ok: boolean; label: string; value: string 
 export default function Dashboard() {
   const system = useTb((s) => s.system);
   const estop = useTb((s) => s.estop);
+  const processes = useTb((s) => s.processes);
 
   const [profiles, setProfiles] = useState<any[]>([]);
   const [snaps, setSnaps] = useState<{ name: string; updated: number }[]>([]);
   const [recs, setRecs] = useState<{ file: string; rows: number | null }[]>([]);
-  const [runServer, setRunServer] = useState<any[]>([]);
-  const [runCtrl, setRunCtrl] = useState<any[]>([]);
-  const [scanning, setScanning] = useState(false);
 
   const loadProfiles = () => api.profiles().then(setProfiles).catch(() => {});
-  const scanRunning = async () => {
-    setScanning(true);
-    const [s, c] = await Promise.all([
-      api.runningLaunches("server").catch(() => []),
-      api.runningLaunches("controller").catch(() => []),
-    ]);
-    setRunServer(s); setRunCtrl(c); setScanning(false);
-  };
   useEffect(() => {
     loadProfiles();
     api.snapshots().then(setSnaps).catch(() => {});
     api.recordings().then(setRecs).catch(() => {});
-    scanRunning();
   }, []);
 
   const zenoh = system?.zenoh;
@@ -95,19 +88,18 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* 실행 중 런치 */}
+      {/* 실행 중 프로세스 (testbench 관리) */}
       <Card>
-        <div className="mb-2 flex items-center justify-between">
-          <CardTitle><span className="inline-flex items-center gap-1.5"><Activity size={14} /> 실행 중 런치</span></CardTitle>
-          <button onClick={scanRunning} disabled={scanning}
-            className="flex items-center gap-1 rounded-lg bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink-soft hover:bg-surface-line disabled:opacity-50">
-            <RefreshCw size={12} className={cn(scanning && "animate-spin")} /> {scanning ? "확인 중…" : "파악"}
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {runServer.length === 0 && runCtrl.length === 0 && <span className="text-xs text-ink-faint">실행 중 ros2 launch 없음</span>}
-          {runServer.map((l, i) => <span key={"s" + i} className="rounded-md border border-surface-line bg-surface-muted px-2 py-0.5 text-xs"><b className="text-brand-700">202</b> {l.package}/{l.file}</span>)}
-          {runCtrl.map((l, i) => <span key={"c" + i} className="rounded-md border border-surface-line bg-surface-muted px-2 py-0.5 text-xs"><b className="text-brand-700">201</b> {l.package}/{l.file}</span>)}
+        <CardTitle><span className="inline-flex items-center gap-1.5"><Activity size={14} /> 실행 중 프로세스 <span className="text-xs font-normal text-ink-faint">(testbench 관리)</span></span></CardTitle>
+        <div className="mt-1 space-y-1 text-sm">
+          {processes.length === 0 && <span className="text-xs text-ink-faint">testbench가 기동·관리 중인 프로세스 없음 (시작 플랜·런치 패널·프로파일로 기동)</span>}
+          {processes.map((r) => (
+            <div key={r.id} className="flex items-center gap-3 border-b border-surface-line py-1.5 last:border-0">
+              <span className={cn("w-16 text-xs font-medium", STATE_COLOR[r.state] ?? "text-ink-faint")}>{r.state}</span>
+              <span className="truncate font-mono text-xs text-ink-soft">{r.proc_id}</span>
+              <span className="ml-auto whitespace-nowrap text-xs text-ink-faint"><b className="text-brand-700">{r.machine === "controller" ? "201" : "202"}</b>{r.pid ? ` · pid ${r.pid}` : ""}</span>
+            </div>
+          ))}
         </div>
       </Card>
 
