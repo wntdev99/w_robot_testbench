@@ -16,6 +16,12 @@ class PublishBody(BaseModel):
     values: dict = {}
 
 
+class SpawnBody(BaseModel):
+    id: str
+    command: str
+    machine: str = "server"  # server | controller
+
+
 @router.post("/api/publish")
 async def publish(request: Request, body: PublishBody) -> dict:
     try:
@@ -23,3 +29,20 @@ async def publish(request: Request, body: PublishBody) -> dict:
     except Exception as e:
         raise_http("publish_failed", str(e), HTTP_BAD_REQUEST)
     return ok(result)
+
+
+# ── 런치/노드 ad-hoc 실행 (process 위젯, owned-registry provenance=ad-hoc) ──
+@router.post("/api/process/spawn")
+async def spawn_process(request: Request, body: SpawnBody) -> dict:
+    pm = request.app.state.process_manager
+    if body.machine == "controller":
+        op = pm.spawn_remote(body.id, body.command, "controller", provenance="ad-hoc")
+    else:
+        op = pm.spawn_local(body.id, body.command, provenance="ad-hoc")
+    return ok({"id": op.id, "pid": op.pid, "machine": op.machine})
+
+
+@router.post("/api/process/{proc_id}/kill")
+async def kill_process(request: Request, proc_id: str) -> dict:
+    request.app.state.process_manager.kill(proc_id)
+    return ok({"killed": proc_id})

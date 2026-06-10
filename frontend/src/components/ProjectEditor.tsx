@@ -7,6 +7,7 @@ const WIDGET_KINDS = [
   { kind: "plot.topic", label: "토픽 플롯" },
   { kind: "diagnostics", label: "Diagnostics" },
   { kind: "control.topic_pub", label: "토픽 발행(제어)" },
+  { kind: "process", label: "런치/노드 실행" },
 ];
 
 type Topic = { name: string; types: string[] };
@@ -70,6 +71,7 @@ function WidgetEditRow({ widget, topics, onChange, onRemove }: {
   onChange: (p: Partial<Widget>) => void; onRemove: () => void;
 }) {
   const isControl = widget.kind === "control.topic_pub";
+  const isProcess = widget.kind === "process";
   const selected = widget.name ?? widget.topic ?? "";
   return (
     <div className="rounded-card bg-surface border border-border p-3 space-y-2">
@@ -84,19 +86,34 @@ function WidgetEditRow({ widget, topics, onChange, onRemove }: {
         </label>
         <button onClick={onRemove} className="text-danger text-sm">삭제</button>
       </div>
-      <div className="flex items-center gap-2 text-sm">
-        토픽:
-        <select value={selected}
-          onChange={(e) => {
-            const t = topics.find((x) => x.name === e.target.value);
-            if (isControl) onChange({ name: e.target.value, type: t?.types[0] });
-            else onChange({ topic: e.target.value });
-          }}
-          className="border border-border rounded px-2 py-1 flex-1">
-          <option value="">선택…</option>
-          {topics.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
-        </select>
-      </div>
+      {isProcess ? (
+        <div className="space-y-2 text-sm">
+          <input value={widget.command ?? ""} onChange={(e) => onChange({ command: e.target.value })}
+            placeholder="ros2 launch <pkg> <file>.launch.py 또는 ros2 run ..."
+            className="border border-border rounded px-2 py-1 w-full font-mono text-xs" />
+          <label className="flex items-center gap-2">머신:
+            <select value={widget.machine ?? "server"} onChange={(e) => onChange({ machine: e.target.value })}
+              className="border border-border rounded px-2 py-1">
+              <option value="server">server (202)</option>
+              <option value="controller">controller (201 SSH)</option>
+            </select>
+          </label>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 text-sm">
+          토픽:
+          <select value={selected}
+            onChange={(e) => {
+              const t = topics.find((x) => x.name === e.target.value);
+              if (isControl) onChange({ name: e.target.value, type: t?.types[0] });
+              else onChange({ topic: e.target.value });
+            }}
+            className="border border-border rounded px-2 py-1 flex-1">
+            <option value="">선택…</option>
+            {topics.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+          </select>
+        </div>
+      )}
       {isControl && widget.type && <div className="text-xs text-muted">타입: {widget.type}</div>}
       {widget.kind === "diagnostics" && (
         <input value={widget.hardware_id_filter ?? ""} placeholder="hardware_id 필터 (예: can2)"

@@ -39,6 +39,8 @@ export const api = {
       node_count: number;
     }>("/api/system/status"),
   bootStatus: () => req<{ clean: boolean; found: number; scan: unknown }>("/api/boot/status"),
+  processes: () => req<{ owned: OwnedProc[] }>("/api/processes"),
+  controllerStatus: () => req<{ host: string; reachable: boolean; stats: { loadavg: string; temp_c: number | null } | null }>("/api/system/controller"),
   bootResolve: (action: "kill" | "cancel") =>
     req("/api/boot/resolve", { method: "POST", body: JSON.stringify({ action }) }),
   emergencyStop: () => req("/api/emergency/stop", { method: "POST" }),
@@ -50,6 +52,9 @@ export const api = {
   stopProject: (id: string) => req<{ stopped: string[] }>(`/api/projects/${id}/stop`, { method: "POST" }),
   publish: (topic: string, type: string, values: Record<string, unknown>) =>
     req("/api/publish", { method: "POST", body: JSON.stringify({ topic, type, values }) }),
+  spawnProcess: (id: string, command: string, machine: string) =>
+    req<{ id: string; pid: number }>("/api/process/spawn", { method: "POST", body: JSON.stringify({ id, command, machine }) }),
+  killProcess: (id: string) => req(`/api/process/${id}/kill`, { method: "POST" }),
   baseline: () => req<{ baseline: BaselineItem[] }>("/api/baseline"),
   baselineUp: () => req("/api/baseline/up", { method: "POST" }),
   baselineDown: () => req("/api/baseline/down", { method: "POST" }),
@@ -87,6 +92,7 @@ export type Widget = {
   id: string; kind: string; title: string;
   pos: { x: number; y: number; w: number; h: number };
   name?: string; type?: string; topic?: string; hardware_id_filter?: string;
+  command?: string; machine?: string;
 };
 export type Project = {
   id: string; name: string; description?: string; origin: string;
@@ -100,3 +106,4 @@ export type RunResult = {
   orphans?: string[];
 };
 export type BaselineItem = { id: string; machine: string; running: boolean; owned: boolean };
+export type OwnedProc = { id: string; machine: string; pid: number; provenance: string; command: string };
