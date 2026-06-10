@@ -43,19 +43,35 @@ cd backend
 python3 -m testbench.main                 # config/testbench.yaml 의 host:port (기본 0.0.0.0:8080)
 # 임의 포트: python3 -m testbench.main --port 8099
 ```
+**중지(서버 끄기):**
+```bash
+# 포그라운드로 띄운 경우: 해당 터미널에서 Ctrl+C
+# 백그라운드/다른 터미널인 경우:
+pkill -f testbench.main                    # 매치 없으면 종료코드 1(무해)
+```
 - `backend/`는 ament_python 패키지(`package.xml`)라 colcon 워크스페이스에 넣어 `colcon build` + systemd 배포도 가능.
-  (설치 경로 배포 시 `TESTBENCH_CONFIG_DIR`로 config 위치 지정)
+  (설치 경로 배포 시 `TESTBENCH_CONFIG_DIR`로 config 위치 지정. systemd 배포면 `systemctl stop`으로 중지)
 - 시작 플랜 자동 실행은 `config/startup.json`의 `auto_on_boot`로 제어(부팅 시 팝업 승인). `TESTBENCH_NO_AUTOSTART=1`로 무시 가능.
 - ⚠ apt `python3-pydantic`은 v1 — 코드는 v1/v2 모두 호환.
+
+> **관측 ≠ 제어.** 테스트벤치 서버를 켜면 zenoh 클라이언트로 로봇 네트워크(202)에 붙어 **이미 실행 중인** 토픽/diagnostics가 화면에 채워집니다 — 이는 testbench가 로봇을 켠 것이 **아닙니다**. 로봇/노드를 실제로 기동·종료하는 경로는 **① 시작 플랜(`auto_on_boot:true`일 때 부팅 후 팝업 승인 / 관리자 탭 '적용')**, **② 런치 패널**, **③ 프로파일**뿐입니다. `auto_on_boot:false`면 부팅 시 어떤 프로세스도 자동 기동하지 않습니다(`/api/admin/status`의 `startup_pending`으로 확인 가능).
 
 ### 2. 프론트엔드 (Next.js 14, 정적 export)
 ```bash
 cd frontend
 npm install
-npm run build                              # → frontend/out (백엔드가 서빙)
-# 개발 서버: NEXT_PUBLIC_API_BASE=http://localhost:8099 npm run dev   (:3000)
+npm run build                              # → frontend/out (백엔드가 서빙). 베이스 주소 설정 불필요
 ```
-빌드 후 백엔드가 `frontend/out`을 같은 오리진에서 서빙 → `http://<서버>:<포트>/`.
+빌드 후 백엔드가 `frontend/out`을 **같은 오리진**에서 서빙 → 브라우저에서 `http://<서버IP>:<포트>/` (예: `http://192.168.34.202:8080`)로 접속하면 끝. **배포/원격 접속은 이 방식만 쓰면 됩니다** — 베이스 주소·CORS 문제가 원천적으로 없습니다.
+
+**개발 서버(`npm run dev`, :3000)는 프론트 코드 수정 시에만:**
+```bash
+# 브라우저와 백엔드가 같은 PC일 때:
+NEXT_PUBLIC_API_BASE=http://localhost:8080 npm run dev      # :3000
+# 다른 PC(노트북 등)에서 dev 서버에 접속할 때는 localhost 대신 서버 LAN IP:
+NEXT_PUBLIC_API_BASE=http://192.168.34.202:8080 npm run dev # :3000
+```
+> ⚠ `NEXT_PUBLIC_API_BASE`는 **브라우저 안에서 해석**됩니다. `localhost`로 두면 *접속한 브라우저의* localhost를 가리키므로, 다른 PC에서 접속하면 백엔드를 못 찾아 **"플랜 로드 실패"** 등 모든 API 호출이 실패합니다. 원격 접속이면 반드시 **서버 LAN IP**를 쓰거나(②), 위의 빌드본 서빙(①)을 사용하세요.
 
 ## 설정 (`config/`)
 - `testbench.yaml` — 서버/컨트롤러 머신, zenoh, liveness, 스트리밍
