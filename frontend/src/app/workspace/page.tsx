@@ -93,10 +93,8 @@ function WorkspaceInner() {
   const [loading, setLoading] = useState(false);
   const [cols, setCols] = useState(2);
   const [addOpen, setAddOpen] = useState(false);
-  const [panels, setPanels] = useState<Panel[]>([
-    { id: nextId(), type: "plot", topic: "", chosen: [] },
-    { id: nextId(), type: "command", cmdTopic: "" },
-  ]);
+  const [ghostOpen, setGhostOpen] = useState(false);  // 그리드 끝 '다음 패널' 고스트
+  const [panels, setPanels] = useState<Panel[]>([]);  // 초기엔 빈 워크스페이스
 
   const refresh = async () => {
     setLoading(true);
@@ -170,7 +168,7 @@ function WorkspaceInner() {
   useEffect(() => { if (snapParam) loadSnap(snapParam); }, [snapParam]); // eslint-disable-line
 
   const visible = topics.filter((t) => (onlyPlottable ? t.plottable : true));
-  const canRemove = panels.length > 1;
+  const canRemove = true;  // 빈 워크스페이스 허용 → 단일 패널도 제거 가능
 
   return (
     <div className="space-y-4">
@@ -226,6 +224,20 @@ function WorkspaceInner() {
         </div>
       </div>
 
+      {panels.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-surface-line py-20 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-3xl font-light text-brand-600">+</div>
+          <div className="mt-3 text-sm text-ink-faint">패널을 추가해 워크스페이스를 구성하세요</div>
+          <div className="mt-5 flex max-w-lg flex-wrap justify-center gap-2">
+            {ADD_MENU.map(({ type, label, icon: Icon }) => (
+              <button key={type} onClick={() => add(type)}
+                className="flex items-center gap-1.5 rounded-xl border border-surface-line bg-surface px-3 py-2 text-sm text-ink-soft shadow-card hover:bg-surface-muted">
+                <Icon size={15} /> {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={panels.map((p) => p.id)} strategy={rectSortingStrategy}>
           <div className={cn("grid gap-4", cols === 1 ? "grid-cols-1" : cols === 2 ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1 xl:grid-cols-3")}>
@@ -243,9 +255,29 @@ function WorkspaceInner() {
                 : <DiagnosticsWidget {...common} onChange={(patch) => update(p.id, patch)} />;
               return <SortablePanel key={p.id} id={p.id}>{widget}</SortablePanel>;
             })}
+
+            {/* 다음 패널 자리 — 희미한 고스트 추가 카드 */}
+            <div className="flex min-h-[140px] items-center justify-center rounded-2xl border-2 border-dashed border-surface-line/70 opacity-60 transition hover:opacity-100">
+              {ghostOpen ? (
+                <div className="flex flex-wrap justify-center gap-2 p-3">
+                  {ADD_MENU.map(({ type, label, icon: Icon }) => (
+                    <button key={type} onClick={() => { add(type); setGhostOpen(false); }}
+                      className="flex items-center gap-1.5 rounded-lg border border-surface-line bg-surface px-2.5 py-1.5 text-xs text-ink-soft hover:bg-surface-muted">
+                      <Icon size={14} /> {label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <button onClick={() => setGhostOpen(true)} className="flex w-full flex-col items-center gap-1 py-8 text-ink-faint hover:text-ink-soft">
+                  <span className="text-3xl font-light">+</span>
+                  <span className="text-xs">패널 추가</span>
+                </button>
+              )}
+            </div>
           </div>
         </SortableContext>
       </DndContext>
+      )}
 
       {/* 스냅샷 저장 모달 (Toss풍) */}
       {saveOpen && (
