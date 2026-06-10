@@ -14,6 +14,7 @@ interface TbState {
   topicData: Record<string, TopicSample>;
   estop: any | null;
   actions: Record<string, any>;   // goal_id -> {action, feedback?, result?}
+  startupProgress: any | null;    // 시작 플랜 진행 상태(블로킹 오버레이용)
 
   _ws?: WebSocket;
   _subs: Set<string>;
@@ -32,6 +33,7 @@ export const useTb = create<TbState>((set, get) => ({
   topicData: {},
   estop: null,
   actions: {},
+  startupProgress: null,
   _subs: new Set(),
 
   connect: () => {
@@ -56,6 +58,10 @@ export const useTb = create<TbState>((set, get) => ({
             if (d.system) set({ system: d.system });
             if (d.processes) set({ processes: d.processes });
             if (d.diagnostics) set({ diagnostics: d.diagnostics });
+            if (d.startup_progress) set({ startupProgress: d.startup_progress });
+            break;
+          case "startup_progress":
+            set({ startupProgress: d });
             break;
           case "system":
             set({ system: d });

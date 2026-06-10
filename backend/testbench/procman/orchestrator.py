@@ -69,7 +69,13 @@ class Orchestrator:
         self._up_profiles: set[str] = set()
         self._adhoc_seq = 0
         self.startup_pending = False   # 부팅 시 시작 플랜 실행 대기(프론트 팝업으로 승인)
+        self.startup_progress: dict | None = None  # 시작 플랜 진행 상태(프론트 블로킹 오버레이용)
         self._lock = asyncio.Lock()
+
+    async def _emit_startup(self, payload: dict) -> None:
+        """시작 플랜 진행 상태를 갱신하고 WS 로 push(스냅샷 → 진행 중 접속자도 수신)."""
+        self.startup_progress = payload
+        await self._ws.broadcast("startup_progress", payload, snapshot=True)
 
     # ── 조회 ──
     def records(self) -> list[dict]:
@@ -254,20 +260,56 @@ class Orchestrator:
         return {"ok": True}
 
     async def run_startup_plan(self) -> dict:
-        """기존 ros2 종료(옵션) → steps 순서·간격대로 기동. 서버 단독 관리 진입점."""
+        """기존 ros2 종료(옵션) → steps 순서·간격대로 기동. 서버 단독 관리 진입점.
+
+        각 단계 진행 상태를 `startup_progress`(WS push)로 노출해 프론트가
+        블로킹 오버레이("끄는 중"/"켜는 중")로 표시·입력 차단할 수 있게 한다.
+        """
         self.startup_pending = False
         plan = load_plan()
+        steps = plan.get("steps", [])
+        kill = bool(plan.get("kill_on_start"))
+        labels: list[dict] = ([{"label": "기존 ros2 종료", "state": "pending"}] if kill else []) + \
+            [{"label": s.get("label", s["id"]), "state": "pending"} for s in steps]
+        total = len(labels)
+        done = 0
         async with self._lock:
             logger.info("=== 시작 플랜 실행 ===")
-            if plan.get("kill_on_start"):
-                await self.kill_all_ros2(plan.get("kill_scope", []))
-                await asyncio.sleep(1.5)
-            for step in plan.get("steps", []):
-                d = float(step.get("delay_s", 0) or 0)
-                if d > 0:
-                    await asyncio.sleep(d)
-                await self._start_step(step)
-            logger.info("=== 시작 플랜 종료 ===")
+            try:
+                if kill:
+                    labels[0]["state"] = "running"
+                    await self._emit_startup({"active": True, "phase": "kill",
+                                              "message": "기존 ros2 프로세스 종료 중…",
+                                              "current": done, "total": total, "steps": labels})
+                    await self.kill_all_ros2(plan.get("kill_scope", []))
+                    await asyncio.sleep(1.5)
+                    labels[0]["state"] = "done"
+                    done += 1
+                base = 1 if kill else 0
+                for i, step in enumerate(steps):
+                    li = base + i
+                    label = step.get("label", step["id"])
+                    labels[li]["state"] = "running"
+                    await self._emit_startup({"active": True, "phase": "starting",
+                                              "message": f"기동 중: {label}",
+                                              "current": done, "total": total, "steps": labels})
+                    d = float(step.get("delay_s", 0) or 0)
+                    if d > 0:
+                        await asyncio.sleep(d)
+                    await self._start_step(step)
+                    rec = self._records.get(f"startup:{step['id']}")
+                    labels[li]["state"] = "failed" if (rec and rec.state == ProcState.FAILED) else "done"
+                    done += 1
+                logger.info("=== 시작 플랜 종료 ===")
+                await self._emit_startup({"active": False, "phase": "done",
+                                          "message": "시작 플랜 완료", "current": done,
+                                          "total": total, "steps": labels})
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("시작 플랜 실패")
+                await self._emit_startup({"active": False, "phase": "failed",
+                                          "message": f"시작 플랜 실패: {exc}", "current": done,
+                                          "total": total, "steps": labels})
+                raise
         return {"ok": True, "processes": self.records()}
 
     async def _start_step(self, step: dict) -> None:
