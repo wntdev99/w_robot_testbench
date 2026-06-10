@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { api, type Project, type RunResult } from "@/lib/api";
 import { WidgetView } from "@/components/widgets/WidgetView";
 import { ProjectEditor } from "@/components/ProjectEditor";
+import { RunPanel } from "@/components/RunPanel";
 
 export default function ProjectRunPage() {
   const params = useParams<{ id: string }>();
@@ -85,6 +86,8 @@ export default function ProjectRunPage() {
           <span className="text-muted"> · {run.processes?.map((p) => `${p.id}(${p.status})`).join(", ")}</span>
         </div>
       )}
+
+      <RunPanel project={project} live={live} />
 
       <div className="grid grid-cols-12 gap-3">
         {(project.layout?.widgets ?? []).map((w) => (

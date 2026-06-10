@@ -62,11 +62,26 @@ export const api = {
   duplicateProject: (id: string, name?: string) =>
     req<Project>(`/api/projects/${id}/duplicate`, { method: "POST", body: JSON.stringify({ name }) }),
   topics: () => req<{ topics: { name: string; types: string[] }[] }>("/api/topics"),
+  // P4 자산화 + cycle
+  recordStart: (project_id: string) =>
+    req<{ run_id: string; recording: string[] }>("/api/record/start", { method: "POST", body: JSON.stringify({ project_id }) }),
+  recordStop: () => req<{ run_id: string }>("/api/record/stop", { method: "POST" }),
+  recordVerdict: (run_id: string, result: "PASS" | "FAIL", comment: string) =>
+    req("/api/record/verdict", { method: "POST", body: JSON.stringify({ run_id, result, comment }) }),
+  records: () => req<{ runs: RunRecord[] }>("/api/records"),
+  cycleStart: (id: string) => req<{ target: number }>(`/api/projects/${id}/cycle/start`, { method: "POST" }),
+  cycleStop: (id: string) => req<CycleState>(`/api/projects/${id}/cycle/stop`, { method: "POST" }),
   typeFields: (type: string) =>
     req<{ type: string; fields: Record<string, FieldNode> }>(`/api/types/${encodeURIComponent(type)}/fields`),
 };
 
 export type FieldNode = { type: string; array: boolean; fields?: Record<string, FieldNode> };
+export type RunRecord = {
+  run_id: string; project_id: string; started_at: string; stopped_at?: string;
+  topics: string[]; counters: Record<string, number>;
+  verdict?: { result: string; comment: string; at: string } | null;
+};
+export type CycleState = { running: boolean; count: number; target: number };
 
 export type Widget = {
   id: string; kind: string; title: string;
