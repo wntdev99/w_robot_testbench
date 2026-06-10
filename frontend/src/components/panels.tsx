@@ -861,6 +861,16 @@ function StickView({ x, y, label }: { x: number; y: number; label: string }) {
   );
 }
 
+function KbKey({ on, label, sub, cls }: { on: boolean; label: string; sub: string; cls?: string }) {
+  return (
+    <div className={cn("flex flex-col items-center justify-center rounded-lg border py-2",
+      on ? "border-brand-500 bg-brand-500 text-white" : "border-surface-line bg-surface text-ink-soft", cls)}>
+      <span className="text-sm font-bold">{label}</span>
+      <span className="text-[9px] opacity-80">{sub}</span>
+    </div>
+  );
+}
+
 // ── 텔레옵 위젯 (전방향 XY 패드 + 회전 슬라이더, 데드맨) ──
 export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
   panel: Panel; onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
@@ -873,8 +883,12 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
   const [padActive, setPadActive] = useState(false);
   const [rotActive, setRotActive] = useState(false);
   const [pub, setPub] = useState({ x: 0, y: 0, z: 0 });
-  const [src, setSrc] = useState<"pad" | "gamepad">("pad");
+  const [src, setSrc] = useState<"pad" | "gamepad" | "keyboard">("pad");
   const [gp, setGp] = useState<{ id: string; deadman: boolean; axes: number[]; buttons: { p: boolean; v: number }[] } | null>(null);
+  const [keys, setKeys] = useState<Set<string>>(new Set());   // 눌린 키(i/j/k/l/shift) 시각화
+  const keysRef = useRef<Set<string>>(new Set());
+  const [kbFocused, setKbFocused] = useState(false);
+  const kbFocusedRef = useRef(false);
   const padRef = useRef<HTMLDivElement>(null);
   const valsRef = useRef({ x: 0, y: 0, z: 0 });
 
@@ -922,6 +936,39 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
     // eslint-disable-next-line
   }, [src, maxLin, maxYaw]);
 
+  // 키보드 소스: i/k=전후, Shift 없으면 j/l=회전, Shift면 j/l=횡이동. 포커스 시에만.
+  useEffect(() => {
+    if (src !== "keyboard") return;
+    const prev = { moving: false };
+    const id = setInterval(() => {
+      const k = keysRef.current;
+      const shift = k.has("shift");
+      let x = 0, y = 0, z = 0;
+      if (!k.has("k")) {   // k = 정지(0). 누르면 전부 0
+        if (k.has("i")) x += maxLin;
+        if (k.has(",")) x -= maxLin;
+        if (shift) { if (k.has("j")) y += maxLin; if (k.has("l")) y -= maxLin; }
+        else { if (k.has("j")) z += maxYaw; if (k.has("l")) z -= maxYaw; }
+      }
+      const moving = x !== 0 || y !== 0 || z !== 0;
+      if (kbFocusedRef.current && moving) { send(x, y, z); prev.moving = true; }
+      else if (prev.moving) { send(0, 0, 0); prev.moving = false; }
+    }, 66);
+    return () => { clearInterval(id); send(0, 0, 0); };
+    // eslint-disable-next-line
+  }, [src, maxLin, maxYaw]);
+
+  const CODE: Record<string, string> = { KeyI: "i", KeyJ: "j", KeyK: "k", KeyL: "l", Comma: ",", ShiftLeft: "shift", ShiftRight: "shift" };
+  const onKbDown = (e: React.KeyboardEvent) => {
+    const m = CODE[e.code]; if (!m) return; e.preventDefault();
+    keysRef.current.add(m); setKeys(new Set(keysRef.current));
+  };
+  const onKbUp = (e: React.KeyboardEvent) => {
+    const m = CODE[e.code]; if (!m) return;
+    keysRef.current.delete(m); setKeys(new Set(keysRef.current));
+  };
+  const kbBlur = () => { keysRef.current.clear(); setKeys(new Set()); kbFocusedRef.current = false; setKbFocused(false); };
+
   const padMove = (e: React.PointerEvent) => {
     const r = padRef.current!.getBoundingClientRect();
     let dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
@@ -935,10 +982,10 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
       head={
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg bg-surface-muted p-0.5 text-xs">
-            {(["pad", "gamepad"] as const).map((s) => (
+            {(["pad", "gamepad", "keyboard"] as const).map((s) => (
               <button key={s} onClick={() => setSrc(s)}
                 className={cn("rounded-md px-2 py-0.5", src === s ? "bg-surface text-ink shadow-card" : "text-ink-faint")}>
-                {s === "pad" ? "화면패드" : "게임패드"}
+                {s === "pad" ? "화면패드" : s === "gamepad" ? "게임패드" : "키패드"}
               </button>
             ))}
           </div>
@@ -977,6 +1024,28 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
             ) : (
               <div className="py-3 text-center text-xs text-ink-faint">게임패드 미감지 — 패드 연결 후 아무 버튼이나 누르세요</div>
             )}
+          </div>
+        )}
+
+        {/* 키보드 소스 */}
+        {src === "keyboard" && (
+          <div tabIndex={0} onKeyDown={onKbDown} onKeyUp={onKbUp}
+            onFocus={() => { kbFocusedRef.current = true; setKbFocused(true); }} onBlur={kbBlur}
+            className={cn("w-full rounded-xl border p-3 outline-none", kbFocused ? "border-brand-500 bg-surface" : "border-surface-line bg-surface-muted")}>
+            <div className="mb-2 text-center text-xs font-medium">
+              {kbFocused ? <span className="text-ok">키 입력 활성 (포커스 유지)</span> : <span className="text-ink-faint">여기를 클릭해 키 입력 활성화</span>}
+            </div>
+            <div className="mx-auto flex w-72 items-center gap-3">
+              <KbKey on={keys.has("shift")} label="Shift" sub="횡이동(y)" cls="w-20 shrink-0" />
+              <div className="grid flex-1 grid-cols-3 gap-1.5">
+                <span /><KbKey on={keys.has("i")} label="I" sub="전진" /><span />
+                <KbKey on={keys.has("j")} label="J" sub={keys.has("shift") ? "횡 ←" : "좌회전"} />
+                <KbKey on={keys.has("k")} label="K" sub="정지" />
+                <KbKey on={keys.has("l")} label="L" sub={keys.has("shift") ? "횡 →" : "우회전"} />
+                <span /><KbKey on={keys.has(",")} label="," sub="후진" /><span />
+              </div>
+            </div>
+            <div className="mt-2 text-center font-mono text-xs text-ink-soft">x{pub.x.toFixed(2)} y{pub.y.toFixed(2)} z{pub.z.toFixed(2)}</div>
           </div>
         )}
 
