@@ -859,6 +859,8 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
   const [padActive, setPadActive] = useState(false);
   const [rotActive, setRotActive] = useState(false);
   const [pub, setPub] = useState({ x: 0, y: 0, z: 0 });
+  const [src, setSrc] = useState<"pad" | "gamepad">("pad");
+  const [gp, setGp] = useState<{ id: string; deadman: boolean } | null>(null);
   const padRef = useRef<HTMLDivElement>(null);
   const valsRef = useRef({ x: 0, y: 0, z: 0 });
 
@@ -873,13 +875,37 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
     api.publish(topic, "geometry_msgs/msg/Twist", { linear: { x, y, z: 0 }, angular: { x: 0, y: 0, z } }).catch(() => {});
   };
 
-  const active = padActive || rotActive;
+  const active = (src === "pad") && (padActive || rotActive);
   useEffect(() => {
     if (!active) return;
     const id = setInterval(() => { const v = valsRef.current; send(v.x, v.y, v.z); }, 66);  // ~15Hz
     return () => { clearInterval(id); send(0, 0, 0); };  // 떼면 즉시 정지
     // eslint-disable-next-line
   }, [active]);
+
+  // 게임패드 소스: W3C Gamepad API. 매핑은 로봇 teleop 의미 따름.
+  // 데드맨 = LT(buttons[6]) 누르는 동안만. 좌스틱=평행이동, 우스틱X=회전.
+  useEffect(() => {
+    if (src !== "gamepad") return;
+    const prev = { dead: false };
+    const dz = (v: number) => (Math.abs(v) < 0.05 ? 0 : v);
+    const id = setInterval(() => {
+      const pads = (navigator.getGamepads?.() ?? []) as (Gamepad | null)[];
+      const g = pads.find((p) => p) || null;
+      if (!g) { setGp(null); if (prev.dead) { send(0, 0, 0); prev.dead = false; } return; }
+      const lt = g.buttons[6]?.value ?? 0;          // 왼쪽 트리거 = 데드맨
+      const deadman = lt > 0.05;
+      setGp({ id: g.id, deadman });
+      if (deadman) {
+        const x = -dz(g.axes[1] ?? 0) * maxLin;     // 좌스틱 위=전진(+x)
+        const y = -dz(g.axes[0] ?? 0) * maxLin;     // 좌스틱 좌=+y
+        const z = -dz(g.axes[2] ?? 0) * maxYaw;     // 우스틱 우=시계(-z)
+        send(x, y, z); prev.dead = true;
+      } else if (prev.dead) { send(0, 0, 0); prev.dead = false; }
+    }, 66);
+    return () => { clearInterval(id); send(0, 0, 0); };
+    // eslint-disable-next-line
+  }, [src, maxLin, maxYaw]);
 
   const padMove = (e: React.PointerEvent) => {
     const r = padRef.current!.getBoundingClientRect();
@@ -891,9 +917,42 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
 
   return (
     <Shell title="텔레옵" onRemove={onRemove} canRemove={canRemove}
-      head={<span className="font-mono text-[11px] text-ink-faint">x{pub.x.toFixed(2)} y{pub.y.toFixed(2)} z{pub.z.toFixed(2)}</span>}>
+      head={
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg bg-surface-muted p-0.5 text-xs">
+            {(["pad", "gamepad"] as const).map((s) => (
+              <button key={s} onClick={() => setSrc(s)}
+                className={cn("rounded-md px-2 py-0.5", src === s ? "bg-surface text-ink shadow-card" : "text-ink-faint")}>
+                {s === "pad" ? "화면패드" : "게임패드"}
+              </button>
+            ))}
+          </div>
+          <span className="font-mono text-[11px] text-ink-faint">x{pub.x.toFixed(2)} y{pub.y.toFixed(2)} z{pub.z.toFixed(2)}</span>
+        </div>
+      }>
       <div className="flex flex-col items-center gap-3">
-        {/* XY 평행이동 패드 */}
+        {/* 게임패드 상태 */}
+        {src === "gamepad" && (
+          <div className="w-full rounded-xl border border-surface-line bg-surface-muted p-3 text-sm">
+            {gp ? (
+              <>
+                <div className="truncate text-xs text-ink-soft">🎮 {gp.id.slice(0, 42)}</div>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className={cn("rounded-md px-2 py-1 text-xs font-bold", gp.deadman ? "bg-ok text-white" : "bg-surface-line text-ink-faint")}>
+                    {gp.deadman ? "주행 中 (LT)" : "LT 떼짐 — 정지"}
+                  </span>
+                  <span className="font-mono text-xs text-ink-soft">x{pub.x.toFixed(2)} y{pub.y.toFixed(2)} z{pub.z.toFixed(2)}</span>
+                </div>
+                <div className="mt-2 text-[11px] text-ink-faint">LT(왼쪽 트리거) 누른 채 — 좌스틱=평행이동 · 우스틱=회전</div>
+              </>
+            ) : (
+              <div className="py-3 text-center text-xs text-ink-faint">게임패드 미감지 — 패드 연결 후 아무 버튼이나 누르세요</div>
+            )}
+          </div>
+        )}
+
+        {/* XY 평행이동 패드 (화면패드 소스) */}
+        {src === "pad" && <>
         <div
           ref={padRef}
           onPointerDown={(e) => { (e.target as Element).setPointerCapture(e.pointerId); setPadActive(true); padMove(e); }}
@@ -925,15 +984,16 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
             onPointerCancel={() => { setRotActive(false); setRot(0); }}
             className="w-full" />
         </div>
+        </>}
 
-        {/* 속도 한계 + 대상 토픽 */}
+        {/* 속도 한계 + 대상 토픽 (공통) */}
         <div className="grid w-full grid-cols-2 gap-2 text-xs">
           <label className="flex items-center gap-1">최대 직진 <input type="number" step="0.1" value={maxLin} onChange={(e) => setMaxLin(Number(e.target.value))} className="w-16 rounded border border-surface-line px-1 py-0.5" /> m/s</label>
           <label className="flex items-center gap-1">최대 회전 <input type="number" step="0.1" value={maxYaw} onChange={(e) => setMaxYaw(Number(e.target.value))} className="w-16 rounded border border-surface-line px-1 py-0.5" /> rad/s</label>
         </div>
         <input value={topic} onChange={(e) => onChange({ cmdTopic: e.target.value })}
           className="w-full rounded-lg border border-surface-line px-2 py-1 text-xs" placeholder="/swerve_controller/cmd_vel" />
-        <div className="text-[11px] text-warn">⚠ 누르고 있는 동안만 전송(데드맨). 떼면 즉시 정지. 컨트롤러 active 필요.</div>
+        <div className="text-[11px] text-warn">⚠ {src === "gamepad" ? "LT" : "누르고 있는 동안"}만 전송(데드맨). 떼면 즉시 정지. 컨트롤러 active 필요.</div>
       </div>
     </Shell>
   );
