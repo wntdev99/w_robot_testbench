@@ -68,6 +68,7 @@ async def ping_rtt(host: str, timeout: float = 2.0) -> tuple[bool, float | None]
 
 
 async def snapshot(controller_reachable: bool | None = None,
+                   controller_ssh_ok: bool | None = None,
                    controller_host: str | None = None) -> dict:
     inet_ok, inet_ms = await ping_rtt("8.8.8.8")
     latency: dict[str, float | None] = {"internet_ms": inet_ms}
@@ -82,5 +83,6 @@ async def snapshot(controller_reachable: bool | None = None,
         "latency": latency,                # 지연(ms) — internet_ms / controller_ms
         "internet": inet_ok,
         "controller_reachable": controller_reachable,
+        "controller_ssh_ok": controller_ssh_ok,
         "ts": time.time(),
     }

@@ -251,8 +251,8 @@ class Orchestrator:
         if "server" in scope:
             out["server"] = kill_local_ros2()
         if "controller" in scope and self._remote:
-            await self._remote.kill_ros2()
-            out["controller"] = "requested"
+            ok = await self._remote.kill_ros2()
+            out["controller"] = "killed" if ok else "ssh_failed"   # 실패 시 UI 에 노출
         return out
 
     def dismiss_startup(self) -> dict:
@@ -396,13 +396,14 @@ class Orchestrator:
             return {"ok": False, "reason": "unknown id"}
         rec.state = ProcState.STOPPING
         await self._broadcast()
+        ok = True
         if rec.machine == "controller" and self._remote:
-            await self._remote.stop(rid)
+            ok = await self._remote.stop(rid)   # SSH 실패면 False → 응답에 노출
         elif rec.kind != "zenoh":
             await self._local.stop(rid)
         self._records.pop(rid, None)
         await self._broadcast()
-        return {"ok": True, "id": rid}
+        return {"ok": ok, "id": rid, **({} if ok else {"reason": "controller_ssh_failed"})}
 
     # ── 정리 (종료 시 owned 프로세스만) ──
     async def shutdown(self) -> None:

@@ -78,6 +78,8 @@ NEXT_PUBLIC_API_BASE=http://192.168.34.202:8080 npm run dev # :3000
 
 전제: 202에 코드가 git clone 되어 있음 (예: `~/ros2_ws/src/w_robot_testbench`), ROS2 Jazzy + `rmw_zenoh_cpp` 설치됨, Node.js/npm 설치됨.
 
+> ⚠ **컨트롤러(201) SSH는 키 인증 전용입니다.** 백엔드의 원격 런치 기동/종료는 `BatchMode=yes`(비밀번호 프롬프트 없음)라, 키가 없으면 **201 대상 모든 명령이 조용히 실패**합니다(종료가 안 되는 등). 아래 0번 단계로 1회 세팅하세요.
+
 ```bash
 # ── 개발 PC ──
 git push                                            # 변경 푸시
@@ -85,6 +87,11 @@ git push                                            # 변경 푸시
 # ── 서버 202 (ssh james@192.168.34.202) ──
 cd ~/ros2_ws/src/w_robot_testbench
 git pull                                            # 최신 코드 반영
+
+# 0) 컨트롤러(201) 무인증 SSH 세팅 (최초 1회) — 키 없으면 생성 후 ssh-copy-id
+./scripts/setup_ssh.sh                              # 201 비밀번호 1회 입력
+#   대상은 config/testbench.yaml 의 controller(기본 ubuntu@192.168.34.201)
+#   다른 대상: CTRL_HOST=... CTRL_USER=... ./scripts/setup_ssh.sh
 
 # 1) ROS 환경 소싱 (이 셸에서)
 source /opt/ros/jazzy/setup.bash

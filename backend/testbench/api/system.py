@@ -13,6 +13,7 @@ async def status(request: Request):
     ctx = request.app.state.ctx
     stats = await local_stats.snapshot(
         controller_reachable=ctx.controller_reachable,
+        controller_ssh_ok=ctx.controller_ssh_ok,
         controller_host=ctx.cfg.controller.host if ctx.cfg.controller else None,
     )
     return {
@@ -20,6 +21,7 @@ async def status(request: Request):
         "controller": {
             "host": ctx.cfg.controller.host if ctx.cfg.controller else None,
             "reachable": ctx.controller_reachable,
+            "ssh_ok": ctx.controller_ssh_ok,
             "topology": "with_controller" if ctx.controller_reachable else "standalone",
         },
         "stats": stats,

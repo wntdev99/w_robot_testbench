@@ -23,4 +23,5 @@ class Context:
     recorder: Recorder
     cam: CameraManager
     nav: NavViz
-    controller_reachable: bool | None = None
+    controller_reachable: bool | None = None   # ping 도달
+    controller_ssh_ok: bool | None = None       # 키 기반 SSH 인증 성공(원격 명령 가능)

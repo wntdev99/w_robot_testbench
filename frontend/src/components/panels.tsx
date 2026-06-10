@@ -499,7 +499,12 @@ export function LaunchWidget({ panel, onChange, onRemove, canRemove }: {
     for (const id of killIds) { try { await api.stopProcess(id); } catch (e) { setMsg(String(e)); } }
     await run(c.f, c.args);
   };
-  const stop = async (id: string) => { try { await api.stopProcess(id); } catch (e) { setMsg(String(e)); } };
+  const stop = async (id: string) => {
+    try {
+      const r: any = await api.stopProcess(id);
+      if (r && r.ok === false) setMsg(r.reason === "controller_ssh_failed" ? "201 SSH 실패 — 종료 명령 미전달(키 인증 확인: scripts/setup_ssh.sh)" : `종료 실패: ${r.reason ?? ""}`);
+    } catch (e) { setMsg(String(e)); }
+  };
   const toggleProfile = async (p: any) => {
     try { await (p.up ? api.profileDown(p.id) : api.profileUp(p.id)); loadProfiles(); } catch (e) { setMsg(String(e)); }
   };

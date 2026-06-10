@@ -19,6 +19,7 @@ export function StatusBar() {
   const zenoh = useTb((s) => s.zenoh);
   const z = zenoh ?? system?.zenoh;
   const ctrl = system?.controller_reachable;
+  const sshOk = system?.controller_ssh_ok;
   const cpu = system?.cpu_percent;
   const temp = system?.temperatures
     ? Math.max(...Object.values(system.temperatures as Record<string, number>))
@@ -33,6 +34,11 @@ export function StatusBar() {
       <div className="h-4 w-px bg-surface-line" />
       <Dot ok={!!z?.running} label="zenoh" />
       <Dot ok={!!ctrl} label={ctrl ? "201 함께" : "201 단독"} />
+      {ctrl && sshOk === false && (
+        <span className="flex items-center gap-1 text-xs font-medium text-danger" title="201에 ping은 되지만 SSH 키 인증 실패 — 원격 런치 기동/종료 불가. scripts/setup_ssh.sh 실행 필요">
+          <span className="h-2 w-2 rounded-full bg-danger" /> 201 SSH✗
+        </span>
+      )}
       <div className="ml-auto flex items-center gap-4 text-xs text-ink-soft">
         {cpu != null && <span>CPU {cpu.toFixed(0)}%</span>}
         {temp != null && <span>온도 {temp.toFixed(0)}℃</span>}

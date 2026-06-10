@@ -48,6 +48,7 @@ async def _monitor_loop(app: FastAPI) -> None:
         try:
             stats = await local_stats.snapshot(
                 controller_reachable=ctx.controller_reachable,
+                controller_ssh_ok=ctx.controller_ssh_ok,
                 controller_host=ctx.cfg.controller.host if ctx.cfg.controller else None,
             )
             stats["zenoh"] = ctx.orch.zenoh.status()
@@ -65,9 +66,12 @@ async def _liveness_loop(app: FastAPI) -> None:
     while True:
         if ctx.orch.remote:
             try:
-                ctx.controller_reachable = await ctx.orch.remote.reachable()
+                st = await ctx.orch.remote.status()
+                ctx.controller_reachable = st["ping"]
+                ctx.controller_ssh_ok = st["ssh"]
             except Exception:  # noqa: BLE001
                 ctx.controller_reachable = False
+                ctx.controller_ssh_ok = False
         await asyncio.sleep(interval)
 
 
