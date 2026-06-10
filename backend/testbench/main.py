@@ -27,6 +27,7 @@ from testbench.api.boot import router as boot_router
 from testbench.api.commands import router as commands_router
 from testbench.api.controllers import router as controllers_router
 from testbench.api.emergency import router as emergency_router
+from testbench.api.introspect import router as introspect_router
 from testbench.api.projects import router as projects_router
 from testbench.api.system import router as system_router
 from testbench.api.ws import router as ws_router
@@ -77,6 +78,7 @@ def build_app(bridge, ws_manager, config, boot_gate, boot_scan, emergency, proce
     app.include_router(baseline_router)
     app.include_router(projects_router)
     app.include_router(commands_router)
+    app.include_router(introspect_router)
     app.include_router(controllers_router)
     app.include_router(emergency_router)
     app.include_router(ws_router)

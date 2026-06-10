@@ -78,3 +78,10 @@ class Config:
     @property
     def ros_proc_patterns(self) -> list[str]:
         return self.boot_gate.get("ros_proc_patterns", [])
+
+    @property
+    def user_projects_dir(self) -> Path:
+        # 사용자 프로젝트(런타임 CRUD)는 쓰기 가능한 홈 경로 (ament share는 읽기전용)
+        d = Path.home() / ".w_robot_testbench" / "projects"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
