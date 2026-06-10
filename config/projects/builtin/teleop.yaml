@@ -29,18 +29,13 @@ test_project:
         topic: /diagnostics
         hardware_id_filter: "can2"     # 검증: hardware_id=can2:<N>
 
-  processes:                            # baseline 외 추가분 (teleop 체인)
+  processes:                            # baseline 외 추가분 — 텔레옵은 teleop_joy 하나면 됨
     - id: teleop_joy
       machine: server
       kind: launch
       command: "ros2 launch w_robot_teleoperation teleop_joy.launch.py"
       healthcheck: { type: topic, topic: /joy, timeout_s: 15 }
-    - id: twist_mux
-      machine: server
-      kind: launch
-      depends_on: [teleop_joy]
-      command: "ros2 launch w_robot_teleoperation twist_mux.launch.py"
-      healthcheck: { type: node, node: /twist_mux, timeout_s: 15 }
+    # twist_mux 미사용(패키지 미설치, 운용상 불필요) — 필요 시 추가
 
   resources:
     derived: true                       # 위젯에서 자동 파생 + 아래 보강

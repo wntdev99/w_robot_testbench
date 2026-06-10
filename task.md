@@ -57,8 +57,9 @@
 - [x] ~~controller switch~~ ✅ (`3d83031`) controller_manager list/switch service
 - [x] ~~emergency 실제 cmd_vel 0~~ ✅ (`3d83031`) cmd_vel 토픽 0 Twist 발행
 - [x] ~~프론트: 프로젝트 실행 화면 + 위젯~~ ✅ 목록/실행 화면 + plot.topic(SVG)·diagnostics·control 위젯 + useTopicStream, 빌드 통과
-- [ ] twist_mux healthcheck 노드/토픽 이름 실측 후 보정 (현 node:/twist_mux → timeout, P1 §12 라이브 실측)
-- [ ] plot 위젯 uPlot 고도화 (현 SVG 스파크라인) + 브라우저 통합 검증(emergency/controller 실로봇)
+- [x] ~~twist_mux healthcheck~~ ✅ 실측 결과 twist_mux 패키지 미설치(운용 불필요) → builtin 텔레옵에서 제거, teleop_joy만 사용
+- [x] ~~plot 위젯 uPlot 고도화~~ ✅ (`3d4c0df`) SVG→uPlot 실시간 시계열 차트
+- [ ] 브라우저 통합 검증 (emergency/controller 실동작 — 사용자 브라우저, 선택)
 
 ### 설계 잔여 (부속 D §8)
 - [x] ~~**zenoh reconcile 예외화**~~ ✅ (`67cecf3`) persistent 플래그로 boot_gate.resolve/baseline_down이 zenoh 보존. 재검증서 robot/control healthcheck 통과 확인
