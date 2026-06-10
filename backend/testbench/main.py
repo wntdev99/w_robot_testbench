@@ -34,6 +34,7 @@ from testbench.api.ws import router as ws_router
 from testbench.config import Config
 from testbench.emergency import Emergency
 from testbench.procman.boot_gate import BootGate
+from testbench.procman.intrusion import intrusion_monitor
 from testbench.procman.process_manager import ProcessManager
 from testbench.projects.store import ProjectStore
 from testbench.ros.controller import ControllerManager
@@ -160,7 +161,11 @@ async def _amain(args: argparse.Namespace) -> int:
                 loop.add_signal_handler(sig, lambda: setattr(server, "should_exit", True))
 
         logger.info("testbench serving http://%s:%d (docs: /docs)", host, port)
-        await server.serve()
+        monitor_task = loop.create_task(intrusion_monitor(boot_gate, ws_manager))
+        try:
+            await server.serve()
+        finally:
+            monitor_task.cancel()
         return 0
     finally:
         spin_thread.stop()

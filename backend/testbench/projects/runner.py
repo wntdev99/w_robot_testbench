@@ -26,7 +26,10 @@ def check_preflight(project: dict, bridge) -> list[dict]:
             return
         seen.add(name)
         if not bridge.topic_exists(name):
-            missing.append({"kind": "topic", "name": name, "widget": widget})
+            missing.append({"kind": "topic", "name": name, "widget": widget, "reason": "absent"})
+        elif bridge.publisher_count(name) == 0:
+            # 존재하나 발행자 없음 → 데이터 안 흐름 (부속 D §4 불변식: 존재≠발행)
+            missing.append({"kind": "topic", "name": name, "widget": widget, "reason": "no_publisher"})
 
     for r in project.get("resources", {}).get("require", []):
         if r.get("kind") == "topic":

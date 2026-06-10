@@ -51,6 +51,13 @@ class RosBridge(Node):
     def topic_exists(self, topic: str) -> bool:
         return any(t == topic for t in self.list_topics())
 
+    def publisher_count(self, topic: str) -> int:
+        # 발행자 존재 = 데이터가 흐를 준비 (preflight 발행 검증, rate 근사)
+        try:
+            return self.count_publishers(topic)
+        except Exception:
+            return 0
+
 
 async def await_ros_future(future: RosFuture, poll_interval: float = 0.05) -> Any:
     """rclpy.task.Future 를 asyncio 에서 await (background 스레드가 spin)."""
