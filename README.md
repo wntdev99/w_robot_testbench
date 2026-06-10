@@ -111,7 +111,18 @@ cd backend && python3 -m testbench.main              # 0.0.0.0:8080
 
 > **요약**: ① `git pull` → ② (변경 시) `install_deps.sh` → ③ (프론트 변경 시) `npm run build` → ④ `python3 -m testbench.main`. 백엔드 코드만 바꿨으면 ②③은 건너뛰고 ④만 재시작하면 됩니다.
 
-**선택 — colcon 설치본/systemd 상시 구동:** `~/ros2_ws`에서 `colcon build --packages-select w_robot_testbench` 후 `ros2 run w_robot_testbench testbench` 로도 실행 가능(단 `frontend/out`은 npm 빌드가 따로 필요, config는 `TESTBENCH_CONFIG_DIR`로 위치 지정). 부팅 시 상시 구동은 이 진입점을 systemd 유닛(`ExecStart=ros2 run w_robot_testbench testbench`, ROS 환경 소싱 포함)으로 등록하고 `systemctl enable --now` → 중지는 `systemctl stop`.
+### 부팅 시 자동 시작 (systemd)
+로봇(202)을 껐다 켜도 백엔드가 자동으로 뜨게 하려면 systemd 서비스로 등록합니다.
+```bash
+./scripts/install_service.sh        # 유닛 생성 + enable --now (sudo, 현재 사용자로 실행)
+# 다른 사용자로:  SERVICE_USER=james ./scripts/install_service.sh
+```
+- `run_server.sh`가 ROS(`/opt/ros/jazzy`)·워크스페이스 오버레이·`RMW_IMPLEMENTATION`을 **명시적으로 source**한 뒤 서버를 띄웁니다.
+- ⚠ **systemd는 `.bashrc`/`.profile`을 읽지 않습니다.** ROS 소싱·env는 위 wrapper가 담당하고, **추가 사용자 환경변수**가 필요하면 `config/server.env`(`KEY=VALUE` 형식, gitignore)에 넣으면 자동 주입됩니다. ROS distro/워크스페이스 경로가 다르면 `ROS_DISTRO=` / `TESTBENCH_WS_SETUP=`로 조정.
+- 관리:  `systemctl status w-robot-testbench` · `journalctl -u w-robot-testbench -f` · 중지 `sudo systemctl stop …` · 자동시작 해제 `sudo systemctl disable …`
+- 이 서비스는 **백엔드 프로세스만** 자동 기동합니다(비파괴적). 기존 ros2 종료 + baseline 기동(시작 플랜)은 별개로, `auto_on_boot`/관리자 '적용'에서 **팝업 승인** 후 실행됩니다.
+
+**선택 — colcon 설치본:** `~/ros2_ws`에서 `colcon build --packages-select w_robot_testbench` 후 `ros2 run w_robot_testbench testbench`로도 실행 가능(단 `frontend/out`은 npm 빌드 별도, config는 `TESTBENCH_CONFIG_DIR`로 위치 지정).
 
 ## 설정 (`config/`)
 - `testbench.yaml` — 서버/컨트롤러 머신, zenoh, liveness, 스트리밍
