@@ -14,8 +14,11 @@ machines:
     role: controller
     ssh_user: ubuntu
     ws: ~/colcon_ws
-    # SSH 비대화형 셸에서 ROS 환경을 잡기 위한 prefix (LC_ALL 경고 회피 포함)
-    setup: "export LC_ALL=C; source /opt/ros/jazzy/setup.bash; source ~/colcon_ws/install/setup.bash"
+    # SSH 비대화형 셸에서 ROS 환경을 잡기 위한 prefix.
+    # ⚠ 비대화형 SSH는 .bashrc 를 안 읽으므로, 201 이 .bashrc 로 받던 zenoh 환경
+    #   (RMW=zenoh + 라우터 클라이언트 엔드포인트)을 여기서 명시해야 한다.
+    #   누락 시 노드가 기본 RMW(FastDDS)로 떠서 크래시·미연결됨.
+    setup: "export LC_ALL=C; export RMW_IMPLEMENTATION=rmw_zenoh_cpp; export ZENOH_CONFIG_OVERRIDE='mode=\"client\";connect/endpoints=[\"tcp/192.168.34.202:7447\"]'; source /opt/ros/jazzy/setup.bash; source ~/colcon_ws/install/setup.bash"
 
 zenoh:
   router_cmd: "ros2 run rmw_zenoh_cpp rmw_zenohd"
