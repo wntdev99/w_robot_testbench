@@ -847,6 +847,20 @@ export function RecorderWidget({ topics, onRemove, canRemove }: {
   );
 }
 
+// 게임패드 시각화 (joystick_controller 참고) — standard mapping 버튼 이름
+const GP_BTN = ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "Sel", "Start", "LS", "RS", "↑", "↓", "←", "→", "Home"];
+function StickView({ x, y, label }: { x: number; y: number; label: string }) {
+  return (
+    <div className="relative h-20 w-20 rounded-full border border-surface-line bg-surface">
+      <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-surface-line" />
+      <div className="absolute top-1/2 left-0 h-px w-full -translate-y-1/2 bg-surface-line" />
+      <div className="absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-500"
+        style={{ left: `${((x + 1) / 2) * 100}%`, top: `${((y + 1) / 2) * 100}%` }} />
+      <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] text-ink-faint">{label}</span>
+    </div>
+  );
+}
+
 // ── 텔레옵 위젯 (전방향 XY 패드 + 회전 슬라이더, 데드맨) ──
 export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
   panel: Panel; onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
@@ -860,7 +874,7 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
   const [rotActive, setRotActive] = useState(false);
   const [pub, setPub] = useState({ x: 0, y: 0, z: 0 });
   const [src, setSrc] = useState<"pad" | "gamepad">("pad");
-  const [gp, setGp] = useState<{ id: string; deadman: boolean } | null>(null);
+  const [gp, setGp] = useState<{ id: string; deadman: boolean; axes: number[]; buttons: { p: boolean; v: number }[] } | null>(null);
   const padRef = useRef<HTMLDivElement>(null);
   const valsRef = useRef({ x: 0, y: 0, z: 0 });
 
@@ -895,7 +909,7 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
       if (!g) { setGp(null); if (prev.dead) { send(0, 0, 0); prev.dead = false; } return; }
       const lt = g.buttons[6]?.value ?? 0;          // 왼쪽 트리거 = 데드맨
       const deadman = lt > 0.05;
-      setGp({ id: g.id, deadman });
+      setGp({ id: g.id, deadman, axes: Array.from(g.axes), buttons: g.buttons.map((b) => ({ p: b.pressed, v: b.value })) });
       if (deadman) {
         const x = -dz(g.axes[1] ?? 0) * maxLin;     // 좌스틱 위=전진(+x)
         const y = -dz(g.axes[0] ?? 0) * maxLin;     // 좌스틱 좌=+y
@@ -936,14 +950,27 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
           <div className="w-full rounded-xl border border-surface-line bg-surface-muted p-3 text-sm">
             {gp ? (
               <>
-                <div className="truncate text-xs text-ink-soft">🎮 {gp.id.slice(0, 42)}</div>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className={cn("rounded-md px-2 py-1 text-xs font-bold", gp.deadman ? "bg-ok text-white" : "bg-surface-line text-ink-faint")}>
-                    {gp.deadman ? "주행 中 (LT)" : "LT 떼짐 — 정지"}
+                <div className="flex items-center justify-between">
+                  <span className="truncate text-xs text-ink-soft">🎮 {gp.id.slice(0, 30)}</span>
+                  <span className={cn("rounded-md px-2 py-0.5 text-xs font-bold", gp.deadman ? "bg-ok text-white" : "bg-surface-line text-ink-faint")}>
+                    {gp.deadman ? "주행 中 (LT)" : "LT 떼짐"}
                   </span>
-                  <span className="font-mono text-xs text-ink-soft">x{pub.x.toFixed(2)} y{pub.y.toFixed(2)} z{pub.z.toFixed(2)}</span>
                 </div>
-                <div className="mt-2 text-[11px] text-ink-faint">LT(왼쪽 트리거) 누른 채 — 좌스틱=평행이동 · 우스틱=회전</div>
+                {/* 스틱 시각화 */}
+                <div className="mt-3 flex justify-around pb-4">
+                  <StickView x={gp.axes[0] ?? 0} y={gp.axes[1] ?? 0} label="좌(이동)" />
+                  <StickView x={gp.axes[2] ?? 0} y={gp.axes[3] ?? 0} label="우(회전)" />
+                </div>
+                {/* 버튼 상태 */}
+                <div className="flex flex-wrap gap-1">
+                  {gp.buttons.map((b, i) => (
+                    <span key={i} className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium",
+                      b.p ? (i === 6 ? "bg-ok text-white" : "bg-brand-500 text-white") : "bg-surface text-ink-faint")}>
+                      {GP_BTN[i] ?? i}{(i === 6 || i === 7) && b.v > 0.02 ? `·${b.v.toFixed(1)}` : ""}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-2 font-mono text-xs text-ink-soft">x{pub.x.toFixed(2)} y{pub.y.toFixed(2)} z{pub.z.toFixed(2)} · LT 누른 채 좌=이동 우=회전</div>
               </>
             ) : (
               <div className="py-3 text-center text-xs text-ink-faint">게임패드 미감지 — 패드 연결 후 아무 버튼이나 누르세요</div>
