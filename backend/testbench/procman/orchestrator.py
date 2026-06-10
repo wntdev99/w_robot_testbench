@@ -13,8 +13,10 @@ from ..config import Config, Profile
 from ..ros_bridge import RosBridge
 from ..ws_manager import WsManager
 from .discover import parse_remote_find, parse_remote_ps, scan_local_launch_files, scan_running_launches
+from .killer import kill_local_ros2
 from .local import LocalRunner
 from .remote_ssh import RemoteRunner
+from .startup import load_plan, save_plan
 from .types import ProcRecord, ProcState
 from .zenoh import ZenohManager
 
@@ -206,6 +208,67 @@ class Orchestrator:
                 "up": pid in self._up_profiles,
             })
         return out
+
+    # ── 시작 플랜 (관리자 탭) ──
+    def get_plan(self) -> dict:
+        return load_plan()
+
+    def set_plan(self, plan: dict) -> dict:
+        return save_plan(plan)
+
+    async def kill_all_ros2(self, scope: list[str]) -> dict:
+        out: dict = {}
+        if "server" in scope:
+            out["server"] = kill_local_ros2()
+        if "controller" in scope and self._remote:
+            await self._remote.kill_ros2()
+            out["controller"] = "requested"
+        return out
+
+    async def run_startup_plan(self) -> dict:
+        """기존 ros2 종료(옵션) → steps 순서·간격대로 기동. 서버 단독 관리 진입점."""
+        plan = load_plan()
+        async with self._lock:
+            logger.info("=== 시작 플랜 실행 ===")
+            if plan.get("kill_on_start"):
+                await self.kill_all_ros2(plan.get("kill_scope", []))
+                await asyncio.sleep(1.5)
+            for step in plan.get("steps", []):
+                d = float(step.get("delay_s", 0) or 0)
+                if d > 0:
+                    await asyncio.sleep(d)
+                await self._start_step(step)
+            logger.info("=== 시작 플랜 종료 ===")
+        return {"ok": True, "processes": self.records()}
+
+    async def _start_step(self, step: dict) -> None:
+        rid = f"startup:{step['id']}"
+        rec = ProcRecord(id=rid, profile_id="startup", proc_id=step["id"],
+                         machine=step.get("machine", "server"), kind=step.get("kind", "launch"),
+                         command=step.get("command", ""))
+        self._records[rid] = rec
+        rec.state = ProcState.STARTING
+        await self._broadcast()
+        try:
+            if step.get("kind") == "zenoh":
+                res = await self._zenoh.ensure_running(rid)
+                rec.owned = res.get("started_by_us", False)
+                rec.state = ProcState.RUNNING if rec.owned else ProcState.EXTERNAL
+                rec.pid = res.get("pid")
+            elif rec.machine == "controller":
+                if not self._remote:
+                    raise RuntimeError("컨트롤러 머신 미설정")
+                await self._remote.start(rid, step["command"])
+                rec.state = ProcState.RUNNING
+            else:
+                rec.pid = await self._local.start(rid, step["command"])
+                rec.state = ProcState.RUNNING
+            rec.started_at = time.time()
+        except Exception as exc:  # noqa: BLE001
+            rec.state = ProcState.FAILED
+            rec.message = str(exc)
+            logger.exception("시작 단계 실패 %s", rid)
+        await self._broadcast()
 
     # ── 런치 파일 런타임 발견 ──
     async def list_launch_files(self, machine: str = "server") -> list[dict]:

@@ -46,6 +46,10 @@ export const api = {
   navMeta: () => req<{ available: boolean; has_map: boolean; resolution?: number; width?: number; height?: number; origin?: { x: number; y: number } }>("/api/nav/map/meta"),
   navOverlay: () => req<{ pose: { x: number; y: number; yaw: number } | null; footprint: number[][]; scan: number[][] }>("/api/nav/overlay"),
   navCancel: () => req<Record<string, any>>("/api/nav/cancel", { method: "POST" }),
+  adminPlan: () => req<any>("/api/admin/plan"),
+  adminSavePlan: (plan: any) => req<any>("/api/admin/plan", { method: "PUT", body: JSON.stringify(plan) }),
+  adminApply: () => req<any>("/api/admin/apply", { method: "POST" }),
+  adminKill: (scope: string[]) => req<any>("/api/admin/kill", { method: "POST", body: JSON.stringify({ scope }) }),
   topics: (includeHidden = false) =>
     req<{ topic: string; types: string[]; publishers: number; subscribers: number; plottable: boolean }[]>(
       `/api/topics?include_hidden=${includeHidden}`,

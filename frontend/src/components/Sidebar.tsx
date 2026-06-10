@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, LayoutGrid, Save,
+  LayoutDashboard, LayoutGrid, Save, ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { api } from "@/lib/api";
@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 const NAV = [
   { href: "/", label: "대시보드", icon: LayoutDashboard },
   { href: "/workspace", label: "워크스페이스", icon: LayoutGrid },
+  { href: "/admin", label: "관리자", icon: ShieldAlert },
 ];
 
 export function Sidebar() {

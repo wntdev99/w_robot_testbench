@@ -32,7 +32,7 @@ from .recorder import Recorder
 from .ros.stream import StreamHub
 from .ros_bridge import RosBridge
 from .ws_manager import WsManager
-from .api import camera, emergency, nav, profiles, recordings, snapshots, system, topics, ws as ws_api
+from .api import admin, camera, emergency, nav, profiles, recordings, snapshots, system, topics, ws as ws_api
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -90,11 +90,12 @@ async def lifespan(app: FastAPI):
     tasks = [asyncio.create_task(_monitor_loop(app)),
              asyncio.create_task(_liveness_loop(app))]
 
-    if os.environ.get("TESTBENCH_AUTOSTART") == "1":
-        logger.info("TESTBENCH_AUTOSTART=1 → 자동 순차기동")
-        asyncio.create_task(orch.autostart())
+    plan = orch.get_plan()
+    if plan.get("auto_on_boot") and os.environ.get("TESTBENCH_NO_AUTOSTART") != "1":
+        logger.info("auto_on_boot=true → 시작 플랜 실행(기존 ros2 종료 후 기동)")
+        asyncio.create_task(orch.run_startup_plan())
     else:
-        logger.info("자동기동 비활성(기본). UI 또는 TESTBENCH_AUTOSTART=1 로 기동.")
+        logger.info("부팅 자동기동 비활성. 관리자 탭에서 '적용'으로 실행.")
 
     try:
         yield
@@ -115,7 +116,7 @@ def build_app() -> FastAPI:
         allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?",
         allow_methods=["*"], allow_headers=["*"], allow_credentials=True,
     )
-    for r in (system.router, profiles.router, topics.router, emergency.router, snapshots.router, recordings.router, camera.router, nav.router, ws_api.router):
+    for r in (system.router, profiles.router, topics.router, emergency.router, snapshots.router, recordings.router, camera.router, nav.router, admin.router, ws_api.router):
         app.include_router(r)
 
     @app.get("/api/health")

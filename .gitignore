@@ -15,3 +15,4 @@ data/
 recordings/
 *.log
 config/snapshots/
+config/startup.json

@@ -87,6 +87,15 @@ class RemoteRunner:
         self._launched.pop(key, None)
         logger.info("원격 종료 [%s]", key)
 
+    async def kill_ros2(self) -> None:
+        """원격(201)의 ros2 관련 프로세스 일괄 종료. [r] 트릭으로 pkill 자기 매칭 회피."""
+        pats = ["[r]os2 launch", "[r]os2 run", "rmw_[z]enohd", "ros2_[c]ontrol_node",
+                "[r]obot_state_publisher", "--[r]os-args"]
+        intc = "; ".join(f"pkill -INT -f '{p}'" for p in pats)
+        killc = "; ".join(f"pkill -KILL -f '{p}'" for p in pats)
+        await self.run_capture(f"{intc}; sleep 1.5; {killc}; true", timeout=12)
+        logger.info("원격 ros2 종료 요청 @%s", self._host)
+
     async def stop_all(self) -> None:
         for key in list(self._launched.keys()):
             await self.stop(key)
