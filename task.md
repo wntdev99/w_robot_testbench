@@ -54,13 +54,13 @@
 - [ ] **P4 러너+자산화** — runner(cycle/sequence)·record(CSV/JSON·counters·수동 verdict)·데이터 자산 페이지
 - [ ] **P5 전장부+진단+카메라** — BMS/Elyx 위젯·diagnostics·CAN 진단 / MJPEG/WebRTC·fps·USB허브
 
-### P4 (러너+자산화) — 코드 완료
+### P4 (러너+자산화) — ✅ 완료
 - [x] recorder — run 단위 토픽 CSV + counters + **수동 verdict**(PASS/FAIL+코멘트) (`0fb811d`)
 - [x] cycle 러너 — steps(control 위젯 참조 publish)×count·settle_s·중단시 부분보존 (`0fb811d`)
 - [x] api/records — record start/stop/verdict·이력·CSV 다운로드·cycle start/stop
 - [x] 프론트 — RunPanel(기록·cycle·verdict) + 데이터 자산 페이지(이력·다운로드), 빌드 ✅
-- [ ] P4 202 통합 검증 (record→cycle→verdict→data 페이지)
-- [ ] (후속) cycle stop_on 센서 연계, service/action step, sqlite history
+- [x] P4 202 통합 검증 ✅ — record(/diagnostics CSV 2932줄)·cycle(count 3/3·cycle_count 카운터)·verdict(PASS+코멘트 박제)·meta.json·exclusive(already_recording). **P4 완료**
+- [ ] (후속) cycle stop_on 센서 연계, service/action step, sqlite history, record 자동 start(run 연계)
 
 ### P3 (수렴·preflight 완성) — ✅ 완료
 - [x] reconciler — orphan diff + confirm_required/decision(kill·keep·abort) (`628c505`)
