@@ -1,0 +1,34 @@
+{
+  "auto_on_boot": true,
+  "kill_on_start": true,
+  "kill_scope": [
+    "server",
+    "controller"
+  ],
+  "steps": [
+    {
+      "id": "zenoh",
+      "label": "zenoh 라우터",
+      "machine": "server",
+      "kind": "zenoh",
+      "command": "ros2 run rmw_zenoh_cpp rmw_zenohd",
+      "delay_s": 0
+    },
+    {
+      "id": "robot_urdf",
+      "label": "Robot URDF",
+      "machine": "server",
+      "kind": "launch",
+      "command": "ros2 launch w_type_mw robot.launch.py",
+      "delay_s": 3
+    },
+    {
+      "id": "controller",
+      "label": "Controller",
+      "machine": "controller",
+      "kind": "launch",
+      "command": "ros2 launch w_type_mw control.launch.py",
+      "delay_s": 3
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Navigation",
+  "updated": 1781086734.5187185,
+  "data": {
+    "cols": 2,
+    "panels": [
+      {
+        "id": "w4",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "w_type_mw",
+        "launchFile": "navigation.launch.py",
+        "launchArgs": "use_velocity_smoother:=false ekf_enable:=false"
+      },
+      {
+        "id": "w5",
+        "type": "nav",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": ""
+      }
+    ]
+  }
+}
