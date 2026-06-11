@@ -7,7 +7,7 @@ import { Card } from "@/components/Card";
 import { PlotPanel, PlotSample } from "@/components/PlotPanel";
 import { cn } from "@/lib/cn";
 
-export type PanelType = "plot" | "controllers" | "diagnostics" | "command" | "launch" | "teleop" | "recorder" | "camera" | "nav";
+export type PanelType = "plot" | "controllers" | "diagnostics" | "command" | "launch" | "teleop" | "recorder" | "camera" | "nav" | "message";
 export type PlotSource = "topic" | "system";
 export type ViewMode = "graph" | "table";
 export type Panel = {
@@ -45,6 +45,27 @@ const NUMERIC = new Set([
 ]);
 export const getPath = (obj: any, path: string) =>
   path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj);
+
+// 메시지(ordereddict)를 key-value 행으로 평탄화 — 문자열·중첩·배열 포함. 대형 배열/총량은 캡.
+function flattenMsg(obj: any, prefix = "", out: [string, string][] = []): [string, string][] {
+  const ARR_CAP = 32, ROW_CAP = 400;
+  if (out.length >= ROW_CAP) return out;
+  if (obj === null || obj === undefined) { out.push([prefix || "(root)", String(obj)]); return out; }
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) { out.push([prefix, "[]"]); return out; }
+    obj.slice(0, ARR_CAP).forEach((v, i) => flattenMsg(v, `${prefix}[${i}]`, out));
+    if (obj.length > ARR_CAP) out.push([`${prefix}[…]`, `(+${obj.length - ARR_CAP} more)`]);
+    return out;
+  }
+  if (typeof obj === "object") {
+    const keys = Object.keys(obj);
+    if (keys.length === 0) { out.push([prefix, "{}"]); return out; }
+    for (const k of keys) { if (out.length >= ROW_CAP) break; flattenMsg(obj[k], prefix ? `${prefix}.${k}` : k, out); }
+    return out;
+  }
+  out.push([prefix || "(root)", typeof obj === "string" ? obj : String(obj)]);
+  return out;
+}
 const num = (v: any): number | null =>
   typeof v === "number" ? v : typeof v === "boolean" ? (v ? 1 : 0) : null;
 function setPath(obj: any, path: string, val: any) {
@@ -320,6 +341,65 @@ const HID_LABEL: Record<string, string> = {
   "can2:11": "조향 FL", "can2:12": "조향 FR", "can2:13": "조향 RL", "can2:14": "조향 RR",
 };
 const hidLabel = (h: string) => (HID_LABEL[h] ? `${HID_LABEL[h]} (${h})` : h);
+
+// ── 메시지 뷰어 위젯 (임의 토픽 최신 메시지를 key-value 로 — 문자열 포함, 웹판 topic echo) ──
+export function MessageWidget({ panel, topics, typeOf, onChange, onRemove, canRemove, onRefreshTopics }: {
+  panel: Panel; topics: Topic[]; typeOf: (t: string) => string | undefined;
+  onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
+  onRefreshTopics?: () => void;
+}) {
+  const topic = panel.topic ?? "";
+  const sample = useTb((s) => (topic ? s.topicData[topic] : undefined));
+  const [paused, setPaused] = useState(false);
+  const frozenRef = useRef<any>(null);
+  const togglePause = () => { if (!paused) frozenRef.current = sample; setPaused((p) => !p); };
+  const shown = paused ? frozenRef.current : sample;
+  const rows = shown ? flattenMsg(shown.values) : [];
+  const inList = !topic || topics.some((t) => t.topic === topic);
+
+  return (
+    <Shell title="메시지" onRemove={onRemove} canRemove={canRemove}
+      head={
+        <div className="flex items-center gap-1.5">
+          <select value={topic} onMouseDown={onRefreshTopics} onFocus={onRefreshTopics}
+            onChange={(e) => onChange({ topic: e.target.value, msgType: typeOf(e.target.value) })}
+            className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[200px]">
+            <option value="">토픽…</option>
+            {topic && !inList && <option value={topic}>{topic} (미발행)</option>}
+            {topics.map((t) => <option key={t.topic} value={t.topic}>{t.topic}</option>)}
+          </select>
+          {topic && (
+            <button onClick={togglePause}
+              className={cn("rounded-lg px-2 py-1 text-xs font-medium", paused ? "bg-warn/10 text-warn" : "bg-surface-muted text-ink-soft hover:bg-surface-line")}>
+              {paused ? "▶ 재개" : "⏸ 일시정지"}
+            </button>
+          )}
+        </div>
+      }>
+      {!topic ? (
+        <div className="py-8 text-center text-sm text-ink-faint">토픽을 선택하세요</div>
+      ) : !shown ? (
+        <div className="py-8 text-center text-sm text-ink-faint">메시지 수신 대기…{!inList ? " (토픽 미발행)" : ""}</div>
+      ) : (
+        <div className="overflow-auto">
+          <div className="mb-1 text-right font-mono text-[10px] text-ink-faint">
+            {panel.msgType}{paused ? " · 일시정지됨" : ""}
+          </div>
+          <table className="w-full text-xs">
+            <tbody>
+              {rows.map(([k, v], i) => (
+                <tr key={k + i} className="border-b border-surface-line/60 align-top">
+                  <td className="py-0.5 pr-3 font-mono text-ink-faint whitespace-nowrap">{k}</td>
+                  <td className="py-0.5 font-mono text-ink-soft break-all">{v}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Shell>
+  );
+}
 
 export function DiagnosticsWidget({ panel, onChange, onRemove, canRemove }: {
   panel: Panel; onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;

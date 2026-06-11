@@ -1,7 +1,7 @@
 "use client";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench, Rocket, Gamepad2, Save, Circle, Camera, Map } from "lucide-react";
+import { RefreshCw, Plus, LineChart, Settings2, Gauge, Wrench, Rocket, Gamepad2, Save, Circle, Camera, Map, Braces } from "lucide-react";
 import { api } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { cn } from "@/lib/cn";
@@ -10,7 +10,7 @@ import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from "@d
 import { CSS } from "@dnd-kit/utilities";
 import {
   Panel, PanelType, Topic, SortableHandleContext,
-  PlotWidget, ControllersWidget, DiagnosticsWidget, CommandWidget, LaunchWidget, TeleopWidget, RecorderWidget, CameraWidget, NavWidget,
+  PlotWidget, ControllersWidget, DiagnosticsWidget, CommandWidget, LaunchWidget, TeleopWidget, RecorderWidget, CameraWidget, NavWidget, MessageWidget,
 } from "@/components/panels";
 
 let _pid = 0;
@@ -70,6 +70,7 @@ function RunningBar() {
 
 const ADD_MENU: { type: PanelType; label: string; icon: any }[] = [
   { type: "plot", label: "플롯", icon: LineChart },
+  { type: "message", label: "메시지", icon: Braces },
   { type: "nav", label: "네비게이션", icon: Map },
   { type: "camera", label: "카메라", icon: Camera },
   { type: "recorder", label: "녹화", icon: Circle },
@@ -106,7 +107,7 @@ function WorkspaceInner() {
   // 구독 합집합 — plot 패널의 topic 만 대상
   const subbed = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const needed = new Set(panels.filter((p) => p.type === "plot" && p.topic).map((p) => p.topic!));
+    const needed = new Set(panels.filter((p) => (p.type === "plot" || p.type === "message") && p.topic).map((p) => p.topic!));
     needed.forEach((t) => { if (!subbed.current.has(t)) { subscribe(t, typeOf(t)); subbed.current.add(t); } });
     [...subbed.current].forEach((t) => { if (!needed.has(t)) { unsubscribe(t); subbed.current.delete(t); } });
   }, [panels, topics]); // eslint-disable-line
@@ -246,6 +247,7 @@ function WorkspaceInner() {
               const common = { panel: p, onRemove: () => remove(p.id), canRemove };
               const widget =
                 p.type === "plot" ? <PlotWidget {...common} topics={visible} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} onRefreshTopics={refresh} />
+                : p.type === "message" ? <MessageWidget {...common} topics={topics} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} onRefreshTopics={refresh} />
                 : p.type === "command" ? <CommandWidget {...common} topics={topics} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} onRefreshTopics={refresh} />
                 : p.type === "launch" ? <LaunchWidget {...common} onChange={(patch) => update(p.id, patch)} />
                 : p.type === "recorder" ? <RecorderWidget {...common} topics={visible} />
