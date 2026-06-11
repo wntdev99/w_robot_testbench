@@ -381,20 +381,23 @@ export function MessageWidget({ panel, topics, typeOf, onChange, onRemove, canRe
       ) : !shown ? (
         <div className="py-8 text-center text-sm text-ink-faint">메시지 수신 대기…{!inList ? " (토픽 미발행)" : ""}</div>
       ) : (
-        <div className="overflow-auto">
+        <div>
           <div className="mb-1 text-right font-mono text-[10px] text-ink-faint">
             {panel.msgType}{paused ? " · 일시정지됨" : ""}
           </div>
-          <table className="w-full text-xs">
-            <tbody>
-              {rows.map(([k, v], i) => (
-                <tr key={k + i} className="border-b border-surface-line/60 align-top">
-                  <td className="py-0.5 pr-3 font-mono text-ink-faint whitespace-nowrap">{k}</td>
-                  <td className="py-0.5 font-mono text-ink-soft break-all">{v}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* 한 칸 높이(max-h) 초과 시 패널을 늘리지 않고 내부 스크롤 */}
+          <div className="max-h-80 overflow-auto">
+            <table className="w-full text-xs">
+              <tbody>
+                {rows.map(([k, v], i) => (
+                  <tr key={k + i} className="border-b border-surface-line/60 align-top">
+                    <td className="py-0.5 pr-3 font-mono text-ink-faint whitespace-nowrap">{k}</td>
+                    <td className="py-0.5 font-mono text-ink-soft break-all">{v}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </Shell>
