@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { X, GripVertical } from "lucide-react";
-import { api, recordingDownloadUrl, cameraStreamUrl, navMapUrl } from "@/lib/api";
+import { api, recordingDownloadUrl, cameraFrameUrl, navMapUrl } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { Card } from "@/components/Card";
 import { PlotPanel, PlotSample } from "@/components/PlotPanel";
@@ -840,6 +840,8 @@ export function CameraWidget({ panel, onChange, onRemove, canRemove }: {
   const [topics, setTopics] = useState<{ topic: string; type: string; compressed: boolean }[]>([]);
   const [available, setAvailable] = useState(true);
   const [err, setErr] = useState(false);
+  const [limited, setLimited] = useState(false);
+  const [frameUrl, setFrameUrl] = useState("");
   const topic = panel.camTopic || "";
 
   const load = () => api.cameraTopics().then((r) => { setTopics(r.topics); setAvailable(r.available); }).catch(() => {});
@@ -847,6 +849,30 @@ export function CameraWidget({ panel, onChange, onRemove, canRemove }: {
 
   // 저장된 토픽이 현재 목록에 없으면(런치 전이라 미발행) 선택 유지를 위해 옵션을 추가로 노출
   const inList = !topic || topics.some((t) => t.topic === topic);
+  const streamable = available && !!topic && inList;
+
+  // 단일 프레임 폴링(~10fps) — 영속 MJPEG 연결 대신 짧은 GET 으로 연결 풀 고갈 회피.
+  // 429(동시 제한 초과)면 안내, 204(프레임 없음)면 대기.
+  useEffect(() => {
+    if (!streamable) { setFrameUrl(""); setLimited(false); return; }
+    let stop = false; let cur = ""; let timer: any;
+    const tick = async () => {
+      if (stop) return;
+      try {
+        const r = await fetch(cameraFrameUrl(topic), { cache: "no-store" });
+        if (r.status === 429) { setLimited(true); }
+        else if (r.status === 200) {
+          setLimited(false); setErr(false);
+          const nu = URL.createObjectURL(await r.blob());
+          if (cur) URL.revokeObjectURL(cur);
+          cur = nu; setFrameUrl(nu);
+        } else if (r.status !== 204) { setErr(true); }
+      } catch { /* 일시 실패 무시 */ }
+      if (!stop) timer = setTimeout(tick, 100);
+    };
+    timer = setTimeout(tick, 0);
+    return () => { stop = true; clearTimeout(timer); if (cur) URL.revokeObjectURL(cur); };
+  }, [topic, inList, available]); // eslint-disable-line
 
   return (
     <Shell title="카메라" onRemove={onRemove} canRemove={canRemove}
@@ -871,13 +897,18 @@ export function CameraWidget({ panel, onChange, onRemove, canRemove }: {
           <div className="font-medium text-ink-soft">{topic}</div>
           토픽 미발행 — 카메라 런치 실행 후 토픽 목록을 열면 자동 갱신되어 표시됩니다
         </div>
+      ) : limited ? (
+        <div className="py-8 text-center text-sm text-warn">
+          동시 카메라 스트리밍 제한 초과 — 다른 카메라 패널을 닫은 뒤 표시됩니다
+        </div>
       ) : err ? (
         <div className="py-8 text-center text-sm text-danger">스트림 오류 — 토픽/발행 상태 확인</div>
-      ) : (
-        // MJPEG 스트림: key 로 토픽 변경 시 재연결, 언마운트 시 연결 종료
+      ) : frameUrl ? (
+        // 단일 프레임 폴링(영속 연결 없음)
         // eslint-disable-next-line @next/next/no-img-element
-        <img key={topic} src={cameraStreamUrl(topic)} alt={topic} onError={() => setErr(true)}
-          className="w-full rounded-lg bg-ink/5" />
+        <img src={frameUrl} alt={topic} className="w-full rounded-lg bg-ink/5" />
+      ) : (
+        <div className="py-8 text-center text-sm text-ink-faint">프레임 수신 대기…</div>
       )}
     </Shell>
   );

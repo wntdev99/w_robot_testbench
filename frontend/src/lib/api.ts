@@ -3,8 +3,8 @@ import { apiBase } from "./config";
 export const recordingDownloadUrl = (file: string) =>
   `${apiBase()}/api/recordings/${encodeURIComponent(file)}/download`;
 
-export const cameraStreamUrl = (topic: string) =>
-  `${apiBase()}/api/camera/stream?topic=${encodeURIComponent(topic)}`;
+export const cameraFrameUrl = (topic: string) =>
+  `${apiBase()}/api/camera/frame?topic=${encodeURIComponent(topic)}`;
 
 export const navMapUrl = () => `${apiBase()}/api/nav/map.png`;
 

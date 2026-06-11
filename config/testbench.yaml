@@ -37,8 +37,10 @@ streaming:
   default_rate_hz: 20           # WS 다운샘플 상한
   diagnostics_topic: "/diagnostics"
 
-# 카메라 MJPEG 스트림 (다중 카메라 대비) — 인코딩은 spin 밖 스레드풀에서 fps 맞춰 수행
+# 카메라 (다중 카메라) — 프론트가 GET /api/camera/frame 으로 폴링. 인코딩은 spin 밖 스레드풀.
 camera:
-  fps: 12                       # 스트림/인코딩 목표 프레임레이트(수신 프레임을 매번 인코딩하지 않음)
+  fps: 12                       # 인코딩/폴링 목표 프레임레이트(수신 프레임을 매번 인코딩하지 않음)
   max_width: 640                # 인코딩 전 가로 상한(px). 초과 시 비율 유지 다운스케일. 0=무제한
   jpeg_quality: 80              # JPEG 품질(1~100)
+  max_concurrent: 3             # 동시 활성(구독) 카메라 상한 — 초과 요청은 429
+  idle_ttl_s: 4                 # 이 시간 폴링이 끊기면 구독 자동 해제(슬롯 반납)

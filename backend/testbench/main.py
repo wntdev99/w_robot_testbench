@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import time
 from pathlib import Path
 
 import rclpy
@@ -54,6 +55,7 @@ async def _monitor_loop(app: FastAPI) -> None:
             stats["zenoh"] = ctx.orch.zenoh.status()
             ctx.recorder.on_system(stats)
             await ctx.ws.broadcast("system", stats, snapshot=True)
+            ctx.cam.reap(time.time())          # 폴링 끊긴 카메라 구독 자동 해제
         except Exception:  # noqa: BLE001
             logger.exception("monitor loop")
         await asyncio.sleep(2.0)

@@ -1,12 +1,16 @@
-"""카메라 — 이미지 토픽 → JPEG 프레임 (MJPEG 스트림용).
+"""카메라 — 이미지 토픽 → JPEG 프레임 (단일 프레임 폴링용).
 
 cv_bridge + cv2 로 sensor_msgs/Image·CompressedImage 를 JPEG 로 변환.
-ros_bridge.subscribe_raw 로 원본 msg 수신(ordereddict 변환 회피). 토픽당 refcount.
-depth(비 uint8)는 정규화 + 컬러맵.
+ros_bridge.subscribe_raw 로 원본 msg 수신(ordereddict 변환 회피).
+
+연결 모델: 영속 MJPEG 스트림(브라우저 HTTP/1.1 origin당 ~6연결 고갈 유발) 대신,
+프론트가 GET /api/camera/frame 으로 fps 마다 1장씩 폴링한다. 동시 활성 카메라는
+max_concurrent 개로 제한하고, 일정 시간 폴링이 끊긴 토픽은 TTL 로 자동 구독 해제.
 """
 from __future__ import annotations
 
 import logging
+import threading
 
 from .ros_bridge import RosBridge
 
@@ -32,11 +36,14 @@ class CameraManager:
         self.fps = float(cfg.get("fps", 12) or 12)
         self._max_w = int(cfg.get("max_width", 640) or 0)
         self._quality = int(cfg.get("jpeg_quality", 80) or 80)
-        # spin 콜백은 raw 프레임만 저장(인코딩 X). 인코딩은 스트림이 스레드풀에서 lazy 수행.
+        self.max_concurrent = int(cfg.get("max_concurrent", 3) or 3)
+        self._ttl = float(cfg.get("idle_ttl_s", 4) or 4)   # 폴링 끊긴 토픽 자동 구독해제 시간
+        # spin 콜백은 raw 프레임만 저장(인코딩 X). 인코딩은 요청이 스레드풀에서 lazy 수행.
         self._raw: dict[str, tuple] = {}      # topic -> (ttype, msg, seq)
         self._jpeg: dict[str, tuple] = {}     # topic -> (seq, bytes)  인코딩 캐시
         self._seq: dict[str, int] = {}
-        self._ref: dict[str, int] = {}
+        self._active: dict[str, float] = {}   # 구독 중 topic -> 마지막 폴링 시각
+        self._lock = threading.Lock()         # _active/구독 생성·해제 보호
 
     def available(self) -> bool:
         return _OK
@@ -51,27 +58,39 @@ class CameraManager:
                             "compressed": "Compressed" in t0})
         return sorted(out, key=lambda x: x["topic"])
 
-    def open(self, topic: str) -> None:
-        self._ref[topic] = self._ref.get(topic, 0) + 1
-        if self._ref[topic] > 1:
-            return
+    def _open(self, topic: str) -> None:
         ttype = self._ros.get_topic_type(topic)
         self._ros.subscribe_raw(topic, ttype,
                                 lambda msg, _t=topic, _ty=ttype: self._on(_t, _ty, msg),
                                 sid=f"cam:{topic}")
-        logger.info("카메라 open: %s", topic)
+        logger.info("카메라 open: %s (활성 %d/%d)", topic, len(self._active) + 1, self.max_concurrent)
 
-    def close(self, topic: str) -> None:
-        n = self._ref.get(topic, 0) - 1
-        if n <= 0:
-            self._ref.pop(topic, None)
-            self._ros.unsubscribe_raw(topic, sid=f"cam:{topic}")
-            self._raw.pop(topic, None)
-            self._jpeg.pop(topic, None)
-            self._seq.pop(topic, None)
-            logger.info("카메라 close: %s", topic)
-        else:
-            self._ref[topic] = n
+    def _close(self, topic: str) -> None:
+        self._ros.unsubscribe_raw(topic, sid=f"cam:{topic}")
+        self._raw.pop(topic, None)
+        self._jpeg.pop(topic, None)
+        self._seq.pop(topic, None)
+        logger.info("카메라 close: %s", topic)
+
+    def request_frame(self, topic: str, now: float) -> tuple[str, bytes | None]:
+        """폴링 1회 — 필요 시 구독 시작 + 최신 프레임 인코딩 반환.
+        반환 status: 'ok'(프레임) | 'pending'(구독했으나 아직 프레임 없음) | 'limit'(동시 제한 초과)."""
+        with self._lock:
+            if topic not in self._active:
+                if len(self._active) >= self.max_concurrent:
+                    return ("limit", None)
+                self._open(topic)
+            self._active[topic] = now
+        frame = self.encode_latest(topic)
+        return ("ok", frame) if frame else ("pending", None)
+
+    def reap(self, now: float) -> None:
+        """폴링이 끊긴(TTL 초과) 토픽의 구독을 해제 — 동시 슬롯 반납."""
+        with self._lock:
+            stale = [t for t, ts in self._active.items() if now - ts > self._ttl]
+            for t in stale:
+                self._active.pop(t, None)
+                self._close(t)
 
     def _on(self, topic: str, ttype: str, msg) -> None:
         # ★ spin 스레드: 최신 raw 프레임만 저장(O(1)). 무거운 cv 변환/JPEG 인코딩은 하지 않는다.
