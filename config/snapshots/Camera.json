@@ -1,0 +1,61 @@
+{
+  "name": "Camera",
+  "updated": 1781174640.6693022,
+  "data": {
+    "cols": 3,
+    "panels": [
+      {
+        "id": "w4",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "w_type_mw",
+        "launchFile": "multi_camera_synced.launch.py",
+        "launchArgs": ""
+      },
+      {
+        "id": "w5",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_left_camera/color/image_raw/compressed"
+      },
+      {
+        "id": "w6",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_middle_camera/color/image_raw/compressed"
+      },
+      {
+        "id": "w7",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_rear_camera/color/image_raw/compressed"
+      },
+      {
+        "id": "w8",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_right_camera/color/image_raw/compressed"
+      },
+      {
+        "id": "w9",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/front_view_middle_camera/color/image_raw/compressed"
+      }
+    ]
+  }
+}

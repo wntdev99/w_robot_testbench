@@ -1,0 +1,65 @@
+{
+  "name": "Battery",
+  "updated": 1781174099.7797925,
+  "data": {
+    "cols": 2,
+    "panels": [
+      {
+        "id": "w16",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "daly_bms_driver",
+        "launchFile": "daly_bms.launch.py",
+        "launchArgs": ""
+      },
+      {
+        "id": "w18",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "elyx_rx_driver",
+        "launchFile": "elyx_rx.launch.py",
+        "launchArgs": ""
+      },
+      {
+        "id": "w20",
+        "type": "plot",
+        "topic": "/daly_bms_node/status",
+        "chosen": [
+          "cell_voltages_mv"
+        ],
+        "cmdTopic": "",
+        "msgType": "daly_bms_interfaces/msg/DalyBmsStatus"
+      },
+      {
+        "id": "w21",
+        "type": "plot",
+        "topic": "/elyx_rx_node/status",
+        "chosen": [
+          "voltage",
+          "current"
+        ],
+        "cmdTopic": "",
+        "msgType": "elyx_rx_interfaces/msg/ElyxRxStatus"
+      },
+      {
+        "id": "w22",
+        "type": "plot",
+        "topic": "/daly_bms_node/status",
+        "chosen": [
+          "total_voltage",
+          "current"
+        ],
+        "cmdTopic": "",
+        "msgType": "daly_bms_interfaces/msg/DalyBmsStatus"
+      }
+    ]
+  }
+}
