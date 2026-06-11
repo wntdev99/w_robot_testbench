@@ -188,9 +188,7 @@ function WorkspaceInner() {
           <select value={cols} onChange={(e) => setCols(Number(e.target.value))} className="rounded-lg border border-surface-line bg-surface px-2 py-1">
             <option value={1}>1열</option><option value={2}>2열</option><option value={3}>3열</option>
           </select>
-          <button onClick={refresh} className="flex items-center gap-1.5 rounded-lg bg-surface-muted px-3 py-1.5 font-medium hover:bg-surface-line">
-            <RefreshCw size={13} className={cn(loading && "animate-spin")} /> 새로고침
-          </button>
+          {/* 토픽 목록은 각 패널 드롭다운을 열 때 자동 새로고침되므로 별도 버튼 불필요 */}
           {/* 스냅샷 */}
           <div className="flex items-center gap-1 border-l border-surface-line pl-3">
             <select value="" onChange={(e) => loadSnap(e.target.value)}
