@@ -841,12 +841,18 @@ export function CameraWidget({ panel, onChange, onRemove, canRemove }: {
   const load = () => api.cameraTopics().then((r) => { setTopics(r.topics); setAvailable(r.available); }).catch(() => {});
   useEffect(() => { load(); }, []);
 
+  // 저장된 토픽이 현재 목록에 없으면(런치 전이라 미발행) 선택 유지를 위해 옵션을 추가로 노출
+  const inList = !topic || topics.some((t) => t.topic === topic);
+
   return (
     <Shell title="카메라" onRemove={onRemove} canRemove={canRemove}
       head={
-        <select value={topic} onChange={(e) => { setErr(false); onChange({ camTopic: e.target.value }); }}
+        <select value={topic}
+          onMouseDown={load} onFocus={load}        // 리스트 열 때 자동 새로고침
+          onChange={(e) => { setErr(false); onChange({ camTopic: e.target.value }); }}
           className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[220px]">
           <option value="">이미지 토픽…</option>
+          {!inList && <option value={topic}>{topic} (미발행)</option>}
           {topics.map((t) => <option key={t.topic} value={t.topic}>{t.topic}{t.compressed ? " (압축)" : ""}</option>)}
         </select>
       }>
@@ -855,6 +861,11 @@ export function CameraWidget({ panel, onChange, onRemove, canRemove }: {
       ) : !topic ? (
         <div className="py-8 text-center text-sm text-ink-faint">
           이미지 토픽을 선택하세요{topics.length === 0 ? " (발행 중인 이미지 토픽 없음)" : ""}
+        </div>
+      ) : !inList ? (
+        <div className="py-8 text-center text-sm text-ink-faint">
+          <div className="font-medium text-ink-soft">{topic}</div>
+          토픽 미발행 — 카메라 런치 실행 후 토픽 목록을 열면 자동 갱신되어 표시됩니다
         </div>
       ) : err ? (
         <div className="py-8 text-center text-sm text-danger">스트림 오류 — 토픽/발행 상태 확인</div>
