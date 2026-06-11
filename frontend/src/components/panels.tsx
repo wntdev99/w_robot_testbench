@@ -157,9 +157,10 @@ function Shell({ title, onRemove, canRemove, head, children }: {
 }
 
 // ── 플롯 위젯 (소스: 토픽 / 시스템) ──
-export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemove }: {
+export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemove, onRefreshTopics }: {
   panel: Panel; topics: Topic[]; typeOf: (t: string) => string | undefined;
   onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
+  onRefreshTopics?: () => void;
 }) {
   const source = panel.source ?? "topic";
   const system = useTb((s) => s.system);
@@ -243,9 +244,11 @@ export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemov
             ))}
           </div>
           {source === "topic" ? (
-            <select value={panel.topic ?? ""} onChange={(e) => onChange({ topic: e.target.value, msgType: typeOf(e.target.value), chosen: [] })}
+            <select value={panel.topic ?? ""} onMouseDown={onRefreshTopics} onFocus={onRefreshTopics}
+              onChange={(e) => onChange({ topic: e.target.value, msgType: typeOf(e.target.value), chosen: [] })}
               className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[200px]">
               <option value="">토픽…</option>
+              {panel.topic && !topics.some((t) => t.topic === panel.topic) && <option value={panel.topic}>{panel.topic} (미발행)</option>}
               {topics.map((t) => <option key={t.topic} value={t.topic} disabled={t.publishers === 0}>{t.topic}{t.publishers === 0 ? " (no pub)" : ""}</option>)}
             </select>
           ) : (
@@ -399,6 +402,7 @@ export function DiagnosticsWidget({ panel, onChange, onRemove, canRemove }: {
           <select value={panel.diagCat ?? ""} onChange={(e) => pickCat(e.target.value)}
             className="mb-2 w-full rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs">
             <option value="">{axis === "metric" ? "항목 선택…" : "기기 선택…"}</option>
+            {panel.diagCat && !cats.some((c) => c.key === panel.diagCat) && <option value={panel.diagCat}>{panel.diagCat} (미수신)</option>}
             {cats.map((c) => <option key={c.key} value={c.key}>{c.label} ({c.paths.length})</option>)}
           </select>
           {chipFields.length > 0 && (
@@ -1262,9 +1266,10 @@ function buildPayload(fields: Field[], vals: Record<string, any>) {
 }
 
 type CmdMode = "publish" | "service" | "action";
-export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRemove }: {
+export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRemove, onRefreshTopics }: {
   panel: Panel; topics: Topic[]; typeOf: (t: string) => string | undefined;
   onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
+  onRefreshTopics?: () => void;
 }) {
   const [mode, setMode] = useState<CmdMode>("publish");
   const [fields, setFields] = useState<Field[]>([]);
@@ -1358,8 +1363,11 @@ export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRe
             ))}
           </div>
           {mode === "publish" && (
-            <select value={topic} onChange={(e) => onChange({ cmdTopic: e.target.value })} className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[180px]">
-              <option value="">토픽…</option>{topics.map((t) => <option key={t.topic} value={t.topic}>{t.topic}</option>)}
+            <select value={topic} onMouseDown={onRefreshTopics} onFocus={onRefreshTopics}
+              onChange={(e) => onChange({ cmdTopic: e.target.value })} className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[180px]">
+              <option value="">토픽…</option>
+              {topic && !topics.some((t) => t.topic === topic) && <option value={topic}>{topic} (미발행)</option>}
+              {topics.map((t) => <option key={t.topic} value={t.topic}>{t.topic}</option>)}
             </select>
           )}
           {mode === "service" && (

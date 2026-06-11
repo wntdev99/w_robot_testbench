@@ -247,8 +247,8 @@ function WorkspaceInner() {
             {panels.map((p) => {
               const common = { panel: p, onRemove: () => remove(p.id), canRemove };
               const widget =
-                p.type === "plot" ? <PlotWidget {...common} topics={visible} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} />
-                : p.type === "command" ? <CommandWidget {...common} topics={topics} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} />
+                p.type === "plot" ? <PlotWidget {...common} topics={visible} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} onRefreshTopics={refresh} />
+                : p.type === "command" ? <CommandWidget {...common} topics={topics} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} onRefreshTopics={refresh} />
                 : p.type === "launch" ? <LaunchWidget {...common} onChange={(patch) => update(p.id, patch)} />
                 : p.type === "recorder" ? <RecorderWidget {...common} topics={visible} />
                 : p.type === "camera" ? <CameraWidget {...common} onChange={(patch) => update(p.id, patch)} />
