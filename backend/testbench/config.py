@@ -94,6 +94,10 @@ class Config:
     def streaming(self) -> dict[str, Any]:
         return self.raw.get("streaming", {})
 
+    @property
+    def camera(self) -> dict[str, Any]:
+        return self.raw.get("camera", {})
+
 
 def load_config(config_dir: Path | None = None) -> Config:
     cdir = config_dir or CONFIG_DIR

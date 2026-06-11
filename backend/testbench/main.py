@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
     orch = Orchestrator(cfg, ros, ws)
     stream = StreamHub(ros, ws, float(cfg.streaming.get("default_rate_hz", 20)))
     recorder = Recorder(ros)
-    cam = CameraManager(ros)
+    cam = CameraManager(ros, cfg.camera)
     navviz = NavViz(ros)
     app.state.ctx = Context(cfg=cfg, ros=ros, ws=ws, orch=orch, stream=stream,
                             recorder=recorder, cam=cam, nav=navviz)
