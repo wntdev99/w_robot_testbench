@@ -9,7 +9,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type D
 import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Panel, PanelType, Topic, SortableHandleContext,
+  Panel, PanelType, Topic, SortableHandleContext, PanelChromeContext,
   PlotWidget, ControllersWidget, DiagnosticsWidget, CommandWidget, LaunchWidget, TeleopWidget, RecorderWidget, CameraWidget, NavWidget, MessageWidget,
 } from "@/components/panels";
 
@@ -141,6 +141,7 @@ function WorkspaceInner() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [snapName, setSnapName] = useState("");
   const [loadAppend, setLoadAppend] = useState(false);   // 불러오기 모드: 교체(false)/추가-합치기(true)
+  const [maximizedId, setMaximizedId] = useState<string | null>(null);   // 최대화된 패널
   const loadSnaps = () => api.snapshots().then(setSnaps).catch(() => {});
   useEffect(() => { loadSnaps(); }, []);
   const openSave = () => { setSnapName(snapParam || ""); setSaveOpen(true); };  // 현재 스냅샷명 prefill
@@ -271,7 +272,18 @@ function WorkspaceInner() {
                 : p.type === "teleop" ? <TeleopWidget {...common} onChange={(patch) => update(p.id, patch)} />
                 : p.type === "controllers" ? <ControllersWidget {...common} />
                 : <DiagnosticsWidget {...common} onChange={(patch) => update(p.id, patch)} />;
-              return <SortablePanel key={p.id} id={p.id}>{widget}</SortablePanel>;
+              return (
+                <SortablePanel key={p.id} id={p.id}>
+                  <PanelChromeContext.Provider value={{
+                    title: p.title,
+                    collapsed: !!p.collapsed,
+                    onToggleCollapse: () => update(p.id, { collapsed: !p.collapsed }),
+                    onRename: (t) => update(p.id, { title: t || undefined }),
+                    maximized: maximizedId === p.id,
+                    onToggleMax: () => setMaximizedId((m) => (m === p.id ? null : p.id)),
+                  }}>{widget}</PanelChromeContext.Provider>
+                </SortablePanel>
+              );
             })}
 
             {/* 다음 패널 자리 — 희미한 고스트 추가 카드 */}

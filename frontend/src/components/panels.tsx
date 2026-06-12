@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { X, GripVertical } from "lucide-react";
+import { X, GripVertical, ChevronDown, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
 import { api, recordingDownloadUrl, cameraFrameUrl, navMapUrl } from "@/lib/api";
 import { useTb } from "@/lib/store";
 import { Card } from "@/components/Card";
@@ -16,6 +16,7 @@ export type Panel = {
   title?: string;
   view?: ViewMode;       // 표/그래프 (plot·diagnostics 패널)
   windowSec?: number;    // 플롯이 보여줄 과거 데이터 길이(초) — 패널별
+  collapsed?: boolean;   // 패널 접힘(헤더만)
 
   // plot
   source?: PlotSource;   // 기본 "topic"
@@ -190,21 +191,57 @@ function DataView({ view, labels, latest, windowSec, height }: {
 type DragHandle = { setActivatorNodeRef: (el: HTMLElement | null) => void; attributes: any; listeners: any } | null;
 export const SortableHandleContext = createContext<DragHandle>(null);
 
+// 패널 크롬(접기/최대화/제목편집) — 워크스페이스가 패널별로 주입. 위젯은 손대지 않음.
+export type PanelChrome = {
+  title?: string; collapsed: boolean; onToggleCollapse: () => void;
+  onRename: (t: string) => void; maximized: boolean; onToggleMax: () => void;
+};
+export const PanelChromeContext = createContext<PanelChrome | null>(null);
+
 function Shell({ title, onRemove, canRemove, head, children }: {
   title: string; onRemove: () => void; canRemove: boolean; head?: React.ReactNode; children: React.ReactNode;
 }) {
   const handle = useContext(SortableHandleContext);
-  return (
-    <Card className="min-w-0">
-      <div className="flex items-center gap-2 mb-3">
-        {handle && (
+  const chrome = useContext(PanelChromeContext);
+  const collapsed = chrome?.collapsed ?? false;
+  const maximized = chrome?.maximized ?? false;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const shownTitle = chrome?.title || title;
+  const commitName = () => { chrome?.onRename(draft.trim()); setEditing(false); };
+
+  const card = (
+    <Card className={cn("min-w-0", maximized && "fixed inset-3 z-[80] overflow-auto shadow-card")}>
+      <div className="mb-3 flex items-center gap-2">
+        {handle && !maximized && (
           <button ref={handle.setActivatorNodeRef} {...handle.attributes} {...handle.listeners}
             title="드래그로 이동" className="-ml-1 cursor-grab text-ink-faint hover:text-ink-soft active:cursor-grabbing touch-none">
             <GripVertical size={14} />
           </button>
         )}
-        <span className="text-xs font-semibold text-ink-faint uppercase tracking-wide">{title}</span>
-        <div className="ml-auto flex items-center gap-2">{head}
+        {chrome && (
+          <button onClick={chrome.onToggleCollapse} title={collapsed ? "펼치기" : "접기"}
+            className="text-ink-faint hover:text-ink-soft">
+            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          </button>
+        )}
+        {editing && chrome ? (
+          <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commitName}
+            onKeyDown={(e) => { if (e.key === "Enter") commitName(); if (e.key === "Escape") setEditing(false); }}
+            className="w-32 rounded border border-surface-line px-1 py-0.5 text-xs" />
+        ) : (
+          <span onDoubleClick={() => { if (chrome) { setDraft(shownTitle); setEditing(true); } }}
+            title={chrome ? "더블클릭하여 제목 편집" : undefined}
+            className="max-w-[180px] truncate text-xs font-semibold uppercase tracking-wide text-ink-faint">{shownTitle}</span>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          {!collapsed && head}
+          {chrome && !collapsed && (
+            <button onClick={chrome.onToggleMax} title={maximized ? "복원" : "최대화"}
+              className="rounded-lg p-1 text-ink-faint hover:bg-surface-muted">
+              {maximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
+          )}
           {canRemove && (
             <button onClick={onRemove} className="rounded-lg p-1 text-ink-faint hover:bg-surface-muted" title="패널 삭제">
               <X size={15} />
@@ -212,9 +249,11 @@ function Shell({ title, onRemove, canRemove, head, children }: {
           )}
         </div>
       </div>
-      {children}
+      {!collapsed && children}
     </Card>
   );
+  if (maximized) return <>{<div className="fixed inset-0 z-[70] bg-ink/40" onClick={chrome?.onToggleMax} />}{card}</>;
+  return card;
 }
 
 // 플롯 과거 데이터 길이(초) 옵션 — 패널별
