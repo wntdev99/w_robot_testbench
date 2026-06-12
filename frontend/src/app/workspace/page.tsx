@@ -140,6 +140,7 @@ function WorkspaceInner() {
   const [snaps, setSnaps] = useState<{ name: string; updated: number }[]>([]);
   const [saveOpen, setSaveOpen] = useState(false);
   const [snapName, setSnapName] = useState("");
+  const [loadAppend, setLoadAppend] = useState(false);   // 불러오기 모드: 교체(false)/추가-합치기(true)
   const loadSnaps = () => api.snapshots().then(setSnaps).catch(() => {});
   useEffect(() => { loadSnaps(); }, []);
   const openSave = () => { setSnapName(snapParam || ""); setSaveOpen(true); };  // 현재 스냅샷명 prefill
@@ -150,14 +151,19 @@ function WorkspaceInner() {
     setSaveOpen(false);
     loadSnaps();
   };
-  const loadSnap = async (name: string) => {
+  const loadSnap = async (name: string, append = false) => {
     if (!name) return;
     try {
       const doc = await api.loadSnapshot(name);
       const d = doc.data || {};
-      if (typeof d.cols === "number") setCols(d.cols);
-      // id 재발급(중복 방지)
-      setPanels((d.panels || []).map((p: Panel) => ({ ...p, id: nextId() })));
+      const loaded = (d.panels || []).map((p: Panel) => ({ ...p, id: nextId() }));   // id 재발급(중복 방지)
+      if (append) {
+        // 합치기: 현재 패널에 추가 → 구독은 needed diff 가 자동으로 합집합 처리(두 스냅샷 동시 표시)
+        setPanels((prev) => [...prev, ...loaded]);
+      } else {
+        if (typeof d.cols === "number") setCols(d.cols);
+        setPanels(loaded);
+      }
     } catch { /* */ }
   };
   const deleteSnap = async (name: string) => {
@@ -192,9 +198,18 @@ function WorkspaceInner() {
           {/* 토픽 목록은 각 패널 드롭다운을 열 때 자동 새로고침되므로 별도 버튼 불필요 */}
           {/* 스냅샷 */}
           <div className="flex items-center gap-1 border-l border-surface-line pl-3">
-            <select value="" onChange={(e) => loadSnap(e.target.value)}
+            {/* 불러오기 모드: 교체 / 추가(합치기) — 추가면 두 스냅샷을 함께 표시 */}
+            <div className="flex rounded-lg bg-surface-muted p-0.5">
+              {([["replace", "교체"], ["append", "추가"]] as const).map(([m, label]) => (
+                <button key={m} onClick={() => setLoadAppend(m === "append")} title={m === "append" ? "현재 구성에 합쳐서 표시(두 스냅샷 동시)" : "현재 구성을 교체"}
+                  className={cn("rounded-md px-2 py-1 text-xs", (loadAppend ? "append" : "replace") === m ? "bg-surface text-ink shadow-card" : "text-ink-faint")}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <select value="" onChange={(e) => loadSnap(e.target.value, loadAppend)}
               className="rounded-lg border border-surface-line bg-surface px-2 py-1.5">
-              <option value="">스냅샷 불러오기…</option>
+              <option value="">{loadAppend ? "스냅샷 합치기…" : "스냅샷 불러오기…"}</option>
               {snaps.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
             </select>
             <button onClick={openSave} title={snapParam ? `'${snapParam}' 덮어쓰기 또는 새 이름으로 저장` : "현재 구성 저장"}
