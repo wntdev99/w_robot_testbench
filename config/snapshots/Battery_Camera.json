@@ -1,0 +1,207 @@
+{
+  "name": "Battery&Camera",
+  "updated": 1781252144.199239,
+  "data": {
+    "cols": 2,
+    "panels": [
+      {
+        "id": "w46",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "daly_bms_driver",
+        "launchFile": "daly_bms.launch.py",
+        "launchArgs": ""
+      },
+      {
+        "id": "w47",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "elyx_rx_driver",
+        "launchFile": "elyx_rx.launch.py",
+        "launchArgs": ""
+      },
+      {
+        "id": "w48",
+        "type": "plot",
+        "topic": "/daly_bms_node/status",
+        "chosen": [
+          "total_voltage",
+          "current",
+          "soc"
+        ],
+        "cmdTopic": "",
+        "msgType": "daly_bms_interfaces/msg/DalyBmsStatus"
+      },
+      {
+        "id": "w49",
+        "type": "plot",
+        "topic": "/elyx_rx_node/status",
+        "chosen": [
+          "voltage",
+          "current"
+        ],
+        "cmdTopic": "",
+        "msgType": "elyx_rx_interfaces/msg/ElyxRxStatus"
+      },
+      {
+        "id": "w50",
+        "type": "plot",
+        "topic": "/daly_bms_node/status",
+        "chosen": [
+          "max_cell_voltage_mv",
+          "min_cell_voltage_mv"
+        ],
+        "cmdTopic": "",
+        "msgType": "daly_bms_interfaces/msg/DalyBmsStatus"
+      },
+      {
+        "id": "w51",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "w_type_mw",
+        "launchFile": "multi_camera_synced.launch.py",
+        "launchArgs": ""
+      },
+      {
+        "id": "w52",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "generate_orbbec_launch",
+        "launchFile": "monitors.launch.py",
+        "launchArgs": ""
+      },
+      {
+        "id": "w53",
+        "type": "message",
+        "topic": "/usb_camera_monitor/devices",
+        "chosen": [],
+        "cmdTopic": "",
+        "msgType": "generate_orbbec_launch/msg/OrbbecUsbDeviceArray"
+      },
+      {
+        "id": "w54",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_middle_camera/color/image_raw/compressed",
+        "camSubOnly": true
+      },
+      {
+        "id": "w55",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_rear_camera/color/image_raw/compressed",
+        "camSubOnly": true
+      },
+      {
+        "id": "w56",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/front_view_middle_camera/color/image_raw/compressed",
+        "camSubOnly": true
+      },
+      {
+        "id": "w57",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_right_camera/color/image_raw/compressed",
+        "camSubOnly": true
+      },
+      {
+        "id": "w58",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/handeye_view_camera/color/image_raw/compressed",
+        "camSubOnly": true
+      },
+      {
+        "id": "w59",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_left_camera/color/image_raw/compressed",
+        "camSubOnly": true
+      },
+      {
+        "id": "w60",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_middle_camera/depth/image_raw",
+        "camSubOnly": true
+      },
+      {
+        "id": "w61",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_rear_camera/depth/image_raw",
+        "camSubOnly": true
+      },
+      {
+        "id": "w62",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_right_camera/depth/image_raw",
+        "camSubOnly": true
+      },
+      {
+        "id": "w63",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/front_view_middle_camera/depth/image_raw",
+        "camSubOnly": true
+      },
+      {
+        "id": "w64",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/handeye_view_camera/depth/image_raw",
+        "camSubOnly": true
+      },
+      {
+        "id": "w65",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_left_camera/depth/image_raw",
+        "camSubOnly": true
+      }
+    ]
+  }
+}
