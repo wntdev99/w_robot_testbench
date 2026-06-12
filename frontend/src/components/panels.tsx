@@ -1379,6 +1379,16 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
 const isBool = (b: string) => b === "boolean" || b === "bool";
 const isNum = (b: string) => NUMERIC.has(b) && !isBool(b);
 
+// 배열 필드 텍스트("1, 2, 3" 또는 "[1,2,3]")를 base_type 에 맞는 리스트로 파싱
+function parseList(text: string, baseType: string): any[] {
+  const t = (text ?? "").trim();
+  if (!t) return [];
+  if (t.startsWith("[")) { try { const j = JSON.parse(t); if (Array.isArray(j)) return j; } catch { /* fall back */ } }
+  const parts = t.replace(/^\[|\]$/g, "").split(/[\s,]+/).filter(Boolean);
+  if (isBool(baseType)) return parts.map((p) => p === "true" || p === "1");
+  if (isNum(baseType)) return parts.map((p) => Number(p));
+  return parts;
+}
 function FieldForm({ fields, vals, setVals }: {
   fields: Field[]; vals: Record<string, any>; setVals: (f: (v: any) => any) => void;
 }) {
@@ -1387,9 +1397,14 @@ function FieldForm({ fields, vals, setVals }: {
       {fields.map((f) => (
         <div key={f.path} className="flex items-center gap-2">
           <label className="w-36 shrink-0 truncate text-xs text-ink-soft" title={f.path}>
-            {f.path}<span className="text-ink-faint"> {f.base_type}</span>
+            {f.path}<span className="text-ink-faint"> {f.base_type}{f.array ? "[]" : ""}</span>
           </label>
-          {isBool(f.base_type) ? (
+          {f.array ? (
+            <input type="text" value={vals[f.path] ?? ""}
+              onChange={(e) => setVals((v) => ({ ...v, [f.path]: e.target.value }))}
+              className="flex-1 rounded-lg border border-surface-line px-2 py-1 font-mono text-sm"
+              placeholder={`${f.base_type}[]  예: 1, 2, 3`} />
+          ) : isBool(f.base_type) ? (
             <input type="checkbox" checked={!!vals[f.path]} onChange={(e) => setVals((v) => ({ ...v, [f.path]: e.target.checked }))} />
           ) : (
             <input type={isNum(f.base_type) ? "number" : "text"} step="any" value={vals[f.path] ?? ""}
@@ -1405,7 +1420,10 @@ function buildPayload(fields: Field[], vals: Record<string, any>) {
   const data: any = {};
   fields.forEach((f) => {
     const raw = vals[f.path];
-    const val = isBool(f.base_type) ? !!raw : isNum(f.base_type) ? Number(raw ?? 0) : (raw ?? "");
+    const val = f.array ? parseList(raw, f.base_type)
+      : isBool(f.base_type) ? !!raw
+      : isNum(f.base_type) ? Number(raw ?? 0)
+      : (raw ?? "");
     setPath(data, f.path, val);
   });
   return data;
@@ -1432,8 +1450,6 @@ export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRe
   const actionEvents = useTb((s) => s.actions);
 
   const topic = panel.cmdTopic ?? "";
-  const hasArray = fields.some((f) => f.array);
-  const scalarFields = fields.filter((f) => !f.array);
 
   useEffect(() => { // publish 필드
     if (mode !== "publish") return;
@@ -1459,10 +1475,10 @@ export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRe
     return () => { alive = false; };
   }, [act, mode]); // eslint-disable-line
 
-  const buildReq = () => (jsonMode ? JSON.parse(jsonText) : buildPayload(scalarFields, vals));
+  const buildReq = () => (jsonMode ? JSON.parse(jsonText) : buildPayload(fields, vals));
   const sendPublish = async () => {
     const type = typeOf(topic); if (!type) return;
-    try { await api.publish(topic, type, buildPayload(scalarFields, vals)); setMsg("publish ✓ " + new Date().toLocaleTimeString()); } catch (e) { setMsg(String(e)); }
+    try { await api.publish(topic, type, buildPayload(fields, vals)); setMsg("publish ✓ " + new Date().toLocaleTimeString()); } catch (e) { setMsg(String(e)); }
   };
   const callSvc = async () => {
     if (!svc || !svcType) return; let b: any;
@@ -1479,15 +1495,13 @@ export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRe
   // 주의: 컴포넌트(<SendForm/>)로 두면 매 렌더 리마운트→입력 포커스 손실. 함수 호출로 인라인 렌더.
   const renderSend = (onSend: () => void, label: string) => (
     <div className="space-y-2">
-      {(hasArray || fields.length === 0) && (
-        <label className="flex items-center gap-1.5 text-xs text-ink-soft">
-          <input type="checkbox" checked={jsonMode} onChange={(e) => setJsonMode(e.target.checked)} /> JSON 직접 입력 (배열/복합/타입 미상)
-        </label>
-      )}
+      <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+        <input type="checkbox" checked={jsonMode} onChange={(e) => setJsonMode(e.target.checked)} /> JSON 직접 입력 (중첩 배열/복합/타입 미상)
+      </label>
       {jsonMode ? (
         <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} rows={5}
-          className="w-full rounded-lg border border-surface-line px-2 py-1 font-mono text-xs" placeholder='{"order": 5}' />
-      ) : scalarFields.length > 0 ? <FieldForm fields={scalarFields} vals={vals} setVals={setVals} />
+          className="w-full rounded-lg border border-surface-line px-2 py-1 font-mono text-xs" placeholder='{"data": [1, 2, 3]}' />
+      ) : fields.length > 0 ? <FieldForm fields={fields} vals={vals} setVals={setVals} />
         : <div className="text-xs text-ink-faint">필드 없음/미상 — 필요 시 JSON 직접 입력</div>}
       <button onClick={onSend} className="mt-1 w-full rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-white active:scale-[.98]">{label}</button>
       {msg && <div className="break-all text-xs text-ink-faint">{msg}</div>}
