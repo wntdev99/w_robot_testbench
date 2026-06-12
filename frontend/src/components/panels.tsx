@@ -16,6 +16,7 @@ export type Panel = {
   title?: string;
   view?: ViewMode;       // 표/그래프 (plot·diagnostics 패널)
   windowSec?: number;    // 플롯이 보여줄 과거 데이터 길이(초) — 패널별
+  hiddenSeries?: string[];  // 범례에서 숨긴 시리즈(배열 인덱스 등) 라벨 — 스냅샷 보존
   collapsed?: boolean;   // 패널 접힘(헤더만)
 
   // plot
@@ -180,11 +181,12 @@ function ValueTable({ labels, vals, units }: { labels: string[]; vals: (number |
 }
 
 // 뷰 렌더 (그래프 or 표)
-function DataView({ view, labels, latest, windowSec, height }: {
+function DataView({ view, labels, latest, windowSec, height, hidden, onHiddenChange }: {
   view: ViewMode; labels: string[]; latest: PlotSample | null; windowSec: number; height: number;
+  hidden?: string[]; onHiddenChange?: (h: string[]) => void;
 }) {
   if (view === "table") return <ValueTable labels={labels} vals={latest?.vals ?? labels.map(() => null)} />;
-  return <PlotPanel title="" seriesLabels={labels} latest={latest} windowSec={windowSec} height={height} />;
+  return <PlotPanel title="" seriesLabels={labels} latest={latest} windowSec={windowSec} height={height} hidden={hidden} onHiddenChange={onHiddenChange} />;
 }
 
 // 드래그 핸들 컨텍스트 — 워크스페이스의 SortablePanel 이 제공, Shell 헤더의 그립이 소비
@@ -389,10 +391,10 @@ export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemov
         </div>
       )}
       {source === "system" ? (
-        labels.length > 0 ? <DataView view={view} labels={labels} latest={latest} windowSec={windowSec} height={200} />
+        labels.length > 0 ? <DataView view={view} labels={labels} latest={latest} windowSec={windowSec} height={200} hidden={panel.hiddenSeries} onHiddenChange={(h) => onChange({ hiddenSeries: h })} />
           : <div className="py-6 text-center text-sm text-ink-faint">{system ? "필드를 선택하세요" : "시스템 데이터 대기…"}</div>
       ) : panel.topic ? (
-        labels.length > 0 ? <DataView view={view} labels={labels} latest={latest} windowSec={windowSec} height={200} />
+        labels.length > 0 ? <DataView view={view} labels={labels} latest={latest} windowSec={windowSec} height={200} hidden={panel.hiddenSeries} onHiddenChange={(h) => onChange({ hiddenSeries: h })} />
           : fields.length > 0 ? <div className="py-6 text-center text-sm text-ink-faint">데이터 수신 대기…</div>
             : <div className="py-6 text-center text-sm text-warn">플롯 가능한 수치 필드 없음</div>
       ) : <div className="py-6 text-center text-sm text-ink-faint">토픽을 선택하세요</div>}

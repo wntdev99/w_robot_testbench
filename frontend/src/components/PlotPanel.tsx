@@ -16,12 +16,16 @@ export function PlotPanel({
   latest,
   windowSec = 30,
   height = 220,
+  hidden,
+  onHiddenChange,
 }: {
   title: string;
   seriesLabels: string[];
   latest: PlotSample | null;
   windowSec?: number;
   height?: number;
+  hidden?: string[];                              // 숨길 시리즈 라벨(초기 상태 복원)
+  onHiddenChange?: (hidden: string[]) => void;    // 범례 토글 시 전체 숨김 목록 통지(저장)
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const plotRef = useRef<uPlot | null>(null);
@@ -47,12 +51,21 @@ export function PlotPanel({
           stroke: PALETTE[i % PALETTE.length],
           width: 1.5,
           spanGaps: true,
+          show: !(hidden ?? []).includes(label),   // 저장된 숨김 상태 복원
         })),
       ],
       axes: [
         { stroke: "#8b95a1", grid: { stroke: "#f2f4f6" } },
         { stroke: "#8b95a1", grid: { stroke: "#f2f4f6" } },
       ],
+      hooks: {
+        // 범례 클릭으로 시리즈 show 가 바뀔 때만(hover focus 제외) 전체 숨김 목록 통지
+        setSeries: [(u: uPlot, sIdx: number | null, o: any) => {
+          if (onHiddenChange && o && typeof o.show === "boolean") {
+            onHiddenChange(seriesLabels.filter((_, i) => u.series[i + 1]?.show === false));
+          }
+        }],
+      },
     };
     plotRef.current = new uPlot(opts, dataRef.current as any, elRef.current);
 
