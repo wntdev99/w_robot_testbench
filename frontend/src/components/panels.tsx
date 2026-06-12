@@ -37,6 +37,14 @@ export type Panel = {
   // camera
   camTopic?: string;
   camSubOnly?: boolean;   // 구독만(표시 안 함) — 로드 테스트용, 인코딩/표시 없이 구독 부하만
+  // teleop (설정 보존)
+  teleMaxLin?: number;
+  teleMaxYaw?: number;
+  teleSrc?: "pad" | "gamepad" | "keyboard";
+  // recorder (구성 보존)
+  recSel?: string[];
+  recDiag?: boolean;
+  recSystem?: boolean;
   // launch (선택 고정 — 스냅샷에 저장)
   launchMachine?: "server" | "controller";
   launchPkg?: string;
@@ -1065,13 +1073,14 @@ export function CameraWidget({ panel, onChange, onRemove, canRemove }: {
 }
 
 // ── Recorder 위젯 (백엔드 풀레이트 녹화 → Wide CSV) ──
-export function RecorderWidget({ topics, onRemove, canRemove }: {
-  panel: Panel; topics: Topic[]; onRemove: () => void; canRemove: boolean;
+export function RecorderWidget({ panel, topics, onChange, onRemove, canRemove }: {
+  panel: Panel; topics: Topic[]; onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
 }) {
-  const [sel, setSel] = useState<Set<string>>(new Set());
+  // 구성(선택 토픽/diagnostics/system)은 스냅샷 보존
+  const sel = useMemo(() => new Set(panel.recSel ?? []), [panel.recSel]);
+  const recDiag = panel.recDiag ?? true;
+  const recSystem = panel.recSystem ?? false;
   const [q, setQ] = useState("");
-  const [recDiag, setRecDiag] = useState(true);
-  const [recSystem, setRecSystem] = useState(false);
   const [name, setName] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [status, setStatus] = useState<{ rows: number; elapsed: number } | null>(null);
@@ -1103,7 +1112,7 @@ export function RecorderWidget({ topics, onRemove, canRemove }: {
     if (r?.file) setLast(r);
     loadRecordings();
   };
-  const toggle = (t: string) => { const n = new Set(sel); n.has(t) ? n.delete(t) : n.add(t); setSel(n); };
+  const toggle = (t: string) => { const n = new Set(sel); n.has(t) ? n.delete(t) : n.add(t); onChange({ recSel: [...n] }); };
   const filtered = topics.filter((t) => t.topic.toLowerCase().includes(q.toLowerCase()));
 
   return (
@@ -1132,8 +1141,8 @@ export function RecorderWidget({ topics, onRemove, canRemove }: {
             ))}
           </div>
           <div className="flex gap-4 text-xs">
-            <label className="flex items-center gap-1.5"><input type="checkbox" checked={recDiag} onChange={(e) => setRecDiag(e.target.checked)} /> diagnostics</label>
-            <label className="flex items-center gap-1.5"><input type="checkbox" checked={recSystem} onChange={(e) => setRecSystem(e.target.checked)} /> 시스템</label>
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={recDiag} onChange={(e) => onChange({ recDiag: e.target.checked })} /> diagnostics</label>
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={recSystem} onChange={(e) => onChange({ recSystem: e.target.checked })} /> 시스템</label>
           </div>
           <button onClick={start} className="w-full rounded-xl bg-brand-500 px-3 py-2 text-sm font-semibold text-white active:scale-[.98]">● 녹화 시작</button>
         </div>
@@ -1189,14 +1198,17 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
   panel: Panel; onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
 }) {
   const topic = panel.cmdTopic || "/swerve_controller/cmd_vel";
-  const [maxLin, setMaxLin] = useState(0.4);   // m/s
-  const [maxYaw, setMaxYaw] = useState(0.8);   // rad/s
+  const maxLin = panel.teleMaxLin ?? 0.4;   // m/s — 스냅샷 보존
+  const setMaxLin = (n: number) => onChange({ teleMaxLin: n });
+  const maxYaw = panel.teleMaxYaw ?? 0.8;   // rad/s
+  const setMaxYaw = (n: number) => onChange({ teleMaxYaw: n });
   const [knob, setKnob] = useState({ x: 0, y: 0 });  // 화면좌표 정규화 (-1..1), x=우+, y=하+
   const [rot, setRot] = useState(0);                 // -1(좌)..1(우)
   const [padActive, setPadActive] = useState(false);
   const [rotActive, setRotActive] = useState(false);
   const [pub, setPub] = useState({ x: 0, y: 0, z: 0 });
-  const [src, setSrc] = useState<"pad" | "gamepad" | "keyboard">("pad");
+  const src = panel.teleSrc ?? "pad";   // 입력 소스 — 스냅샷 보존
+  const setSrc = (s: "pad" | "gamepad" | "keyboard") => onChange({ teleSrc: s });
   const [gp, setGp] = useState<{ id: string; deadman: boolean; axes: number[]; buttons: { p: boolean; v: number }[] } | null>(null);
   const [keys, setKeys] = useState<Set<string>>(new Set());   // 눌린 키(i/j/k/l/shift) 시각화
   const keysRef = useRef<Set<string>>(new Set());

@@ -265,7 +265,7 @@ function WorkspaceInner() {
                 : p.type === "message" ? <MessageWidget {...common} topics={topics} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} onRefreshTopics={refresh} />
                 : p.type === "command" ? <CommandWidget {...common} topics={topics} typeOf={typeOf} onChange={(patch) => update(p.id, patch)} onRefreshTopics={refresh} />
                 : p.type === "launch" ? <LaunchWidget {...common} onChange={(patch) => update(p.id, patch)} />
-                : p.type === "recorder" ? <RecorderWidget {...common} topics={visible} />
+                : p.type === "recorder" ? <RecorderWidget {...common} topics={visible} onChange={(patch) => update(p.id, patch)} />
                 : p.type === "camera" ? <CameraWidget {...common} onChange={(patch) => update(p.id, patch)} />
                 : p.type === "nav" ? <NavWidget {...common} />
                 : p.type === "teleop" ? <TeleopWidget {...common} onChange={(patch) => update(p.id, patch)} />
