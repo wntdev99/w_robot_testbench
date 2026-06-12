@@ -1,11 +1,11 @@
 {
   "name": "Camera",
-  "updated": 1781174640.6693022,
+  "updated": 1781231095.1215954,
   "data": {
     "cols": 3,
     "panels": [
       {
-        "id": "w4",
+        "id": "w1",
         "type": "launch",
         "topic": "",
         "chosen": [],
@@ -17,12 +17,42 @@
         "launchArgs": ""
       },
       {
+        "id": "w4",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "generate_orbbec_launch",
+        "launchFile": "monitors.launch.py",
+        "launchArgs": ""
+      },
+      {
+        "id": "w10",
+        "type": "message",
+        "topic": "/usb_camera_monitor/devices",
+        "chosen": [],
+        "cmdTopic": "",
+        "msgType": "generate_orbbec_launch/msg/OrbbecUsbDeviceArray"
+      },
+      {
+        "id": "w2",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_middle_camera/color/image_raw/compressed",
+        "camSubOnly": true
+      },
+      {
         "id": "w5",
         "type": "camera",
         "topic": "",
         "chosen": [],
         "cmdTopic": "",
-        "camTopic": "/bottom_view_left_camera/color/image_raw/compressed"
+        "camTopic": "/bottom_view_rear_camera/color/image_raw/compressed",
+        "camSubOnly": true
       },
       {
         "id": "w6",
@@ -30,7 +60,8 @@
         "topic": "",
         "chosen": [],
         "cmdTopic": "",
-        "camTopic": "/bottom_view_middle_camera/color/image_raw/compressed"
+        "camTopic": "/front_view_middle_camera/color/image_raw/compressed",
+        "camSubOnly": true
       },
       {
         "id": "w7",
@@ -38,15 +69,8 @@
         "topic": "",
         "chosen": [],
         "cmdTopic": "",
-        "camTopic": "/bottom_view_rear_camera/color/image_raw/compressed"
-      },
-      {
-        "id": "w8",
-        "type": "camera",
-        "topic": "",
-        "chosen": [],
-        "cmdTopic": "",
-        "camTopic": "/bottom_view_right_camera/color/image_raw/compressed"
+        "camTopic": "/bottom_view_right_camera/color/image_raw/compressed",
+        "camSubOnly": true
       },
       {
         "id": "w9",
@@ -54,7 +78,71 @@
         "topic": "",
         "chosen": [],
         "cmdTopic": "",
-        "camTopic": "/front_view_middle_camera/color/image_raw/compressed"
+        "camTopic": "/handeye_view_camera/color/image_raw/compressed",
+        "camSubOnly": true
+      },
+      {
+        "id": "w8",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_left_camera/color/image_raw/compressed",
+        "camSubOnly": true
+      },
+      {
+        "id": "w12",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_middle_camera/depth/image_raw",
+        "camSubOnly": true
+      },
+      {
+        "id": "w13",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_rear_camera/depth/image_raw",
+        "camSubOnly": true
+      },
+      {
+        "id": "w14",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_right_camera/depth/image_raw",
+        "camSubOnly": true
+      },
+      {
+        "id": "w15",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/front_view_middle_camera/depth/image_raw",
+        "camSubOnly": true
+      },
+      {
+        "id": "w16",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/handeye_view_camera/depth/image_raw",
+        "camSubOnly": true
+      },
+      {
+        "id": "w17",
+        "type": "camera",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "camTopic": "/bottom_view_left_camera/depth/image_raw",
+        "camSubOnly": true
       }
     ]
   }
