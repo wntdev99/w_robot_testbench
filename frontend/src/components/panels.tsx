@@ -28,6 +28,7 @@ export type Panel = {
   cmdTopic?: string;
   // camera
   camTopic?: string;
+  camSubOnly?: boolean;   // 구독만(표시 안 함) — 로드 테스트용, 인코딩/표시 없이 구독 부하만
   // launch (선택 고정 — 스냅샷에 저장)
   launchMachine?: "server" | "controller";
   launchPkg?: string;
@@ -932,18 +933,22 @@ export function CameraWidget({ panel, onChange, onRemove, canRemove }: {
 
   // 저장된 토픽이 현재 목록에 없으면(런치 전이라 미발행) 선택 유지를 위해 옵션을 추가로 노출
   const inList = !topic || topics.some((t) => t.topic === topic);
+  const subOnly = !!panel.camSubOnly;
   const streamable = available && !!topic && inList;
 
-  // 단일 프레임 폴링(~10fps) — 영속 MJPEG 연결 대신 짧은 GET 으로 연결 풀 고갈 회피.
-  // 429(동시 제한 초과)면 안내, 204(프레임 없음)면 대기.
+  // 폴링/keep-alive. 표시 모드는 ~10fps 로 프레임을 받고, 구독만 모드는 2s 간격으로
+  // display=0 keep-alive(인코딩·표시 없이 구독만 유지) — 로드 테스트용. 짧은 GET 이라 연결 풀 고갈 없음.
   useEffect(() => {
     if (!streamable) { setFrameUrl(""); setLimited(false); return; }
     let stop = false; let cur = ""; let timer: any;
+    const period = subOnly ? 2000 : 100;
+    const url = cameraFrameUrl(topic) + (subOnly ? "&display=0" : "");
     const tick = async () => {
       if (stop) return;
       try {
-        const r = await fetch(cameraFrameUrl(topic), { cache: "no-store" });
-        if (r.status === 429) { setLimited(true); }
+        const r = await fetch(url, { cache: "no-store" });
+        if (subOnly) { /* keep-alive(204) — 구독만 유지 */ }
+        else if (r.status === 429) { setLimited(true); }
         else if (r.status === 200) {
           setLimited(false); setErr(false);
           const nu = URL.createObjectURL(await r.blob());
@@ -951,23 +956,31 @@ export function CameraWidget({ panel, onChange, onRemove, canRemove }: {
           cur = nu; setFrameUrl(nu);
         } else if (r.status !== 204) { setErr(true); }
       } catch { /* 일시 실패 무시 */ }
-      if (!stop) timer = setTimeout(tick, 100);
+      if (!stop) timer = setTimeout(tick, period);
     };
     timer = setTimeout(tick, 0);
     return () => { stop = true; clearTimeout(timer); if (cur) URL.revokeObjectURL(cur); };
-  }, [topic, inList, available]); // eslint-disable-line
+  }, [topic, inList, available, subOnly]); // eslint-disable-line
 
   return (
     <Shell title="카메라" onRemove={onRemove} canRemove={canRemove}
       head={
-        <select value={topic}
-          onMouseDown={load} onFocus={load}        // 리스트 열 때 자동 새로고침
-          onChange={(e) => { setErr(false); onChange({ camTopic: e.target.value }); }}
-          className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[220px]">
-          <option value="">이미지 토픽…</option>
-          {!inList && <option value={topic}>{topic} (미발행)</option>}
-          {topics.map((t) => <option key={t.topic} value={t.topic}>{t.topic}{t.compressed ? " (압축)" : ""}</option>)}
-        </select>
+        <div className="flex items-center gap-1.5">
+          <select value={topic}
+            onMouseDown={load} onFocus={load}        // 리스트 열 때 자동 새로고침
+            onChange={(e) => { setErr(false); onChange({ camTopic: e.target.value }); }}
+            className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[200px]">
+            <option value="">이미지 토픽…</option>
+            {!inList && <option value={topic}>{topic} (미발행)</option>}
+            {topics.map((t) => <option key={t.topic} value={t.topic}>{t.topic}{t.compressed ? " (압축)" : ""}</option>)}
+          </select>
+          {topic && (
+            <button onClick={() => onChange({ camSubOnly: !subOnly })} title="구독만(표시 안 함) — 로드 테스트용"
+              className={cn("rounded-lg px-2 py-1 text-xs font-medium", subOnly ? "bg-warn/10 text-warn" : "bg-surface-muted text-ink-soft hover:bg-surface-line")}>
+              {subOnly ? "구독만" : "표시"}
+            </button>
+          )}
+        </div>
       }>
       {!available ? (
         <div className="py-8 text-center text-sm text-warn">서버에 cv2/cv_bridge 없음 — 카메라 변환 불가</div>
@@ -979,6 +992,11 @@ export function CameraWidget({ panel, onChange, onRemove, canRemove }: {
         <div className="py-8 text-center text-sm text-ink-faint">
           <div className="font-medium text-ink-soft">{topic}</div>
           토픽 미발행 — 카메라 런치 실행 후 토픽 목록을 열면 자동 갱신되어 표시됩니다
+        </div>
+      ) : subOnly ? (
+        <div className="py-8 text-center text-sm text-ink-faint">
+          <div className="font-medium text-ink-soft">{topic}</div>
+          구독만 유지 중 (표시 안 함) · 로드 테스트 — 인코딩/렌더 없이 구독 부하만
         </div>
       ) : limited ? (
         <div className="py-8 text-center text-sm text-warn">

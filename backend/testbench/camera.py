@@ -72,22 +72,35 @@ class CameraManager:
         self._seq.pop(topic, None)
         logger.info("카메라 close: %s", topic)
 
-    def request_frame(self, topic: str, now: float) -> tuple[str, bytes | None]:
-        """폴링 1회 — 필요 시 구독 시작 + 최신 프레임 인코딩 반환.
-        반환 status: 'ok'(프레임) | 'pending'(구독했으나 아직 프레임 없음) | 'limit'(동시 제한 초과)."""
+    def keep(self, topic: str, now: float, display: bool = True) -> tuple[str, bytes | None]:
+        """폴링/keep-alive 1회 — 필요 시 구독 시작 후 TTL 갱신.
+        display=True: 인코딩 프레임 반환(표시). 동시 '표시' 수만 max_concurrent 로 제한.
+        display=False: 구독만 유지(로드 테스트) — 인코딩·표시 없음, 개수 제한 없음.
+        반환 status: 'ok'|'pending'(표시) | 'subonly'(구독만) | 'limit'(표시 슬롯 초과)."""
         with self._lock:
-            if topic not in self._active:
-                if len(self._active) >= self.max_concurrent:
+            cur = self._active.get(topic)
+            exists = cur is not None
+            was_display = bool(cur and cur[1])
+            if display and not was_display:
+                # 새로 '표시'를 요청 — 표시 슬롯이 차 있으면 구독은 유지하되 표시는 거부
+                active_disp = sum(1 for v in self._active.values() if v[1])
+                if active_disp >= self.max_concurrent:
+                    if not exists:
+                        self._open(topic)
+                    self._active[topic] = (now, False)
                     return ("limit", None)
+            if not exists:
                 self._open(topic)
-            self._active[topic] = now
+            self._active[topic] = (now, display)
+        if not display:
+            return ("subonly", None)
         frame = self.encode_latest(topic)
         return ("ok", frame) if frame else ("pending", None)
 
     def reap(self, now: float) -> None:
-        """폴링이 끊긴(TTL 초과) 토픽의 구독을 해제 — 동시 슬롯 반납."""
+        """폴링/keep-alive 가 끊긴(TTL 초과) 토픽의 구독을 해제 — 슬롯 반납."""
         with self._lock:
-            stale = [t for t, ts in self._active.items() if now - ts > self._ttl]
+            stale = [t for t, v in self._active.items() if now - v[0] > self._ttl]
             for t in stale:
                 self._active.pop(t, None)
                 self._close(t)
