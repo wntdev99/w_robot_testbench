@@ -26,8 +26,14 @@ export type Panel = {
   // diagnostics
   diagAxis?: "device" | "metric";  // 기기별 / 항목별
   diagCat?: string;                // 선택된 카테고리(hardware_id 또는 metric key)
-  // command
+  // command (입력값까지 스냅샷 보존)
   cmdTopic?: string;
+  cmdMode?: "publish" | "service" | "action";
+  cmdVals?: Record<string, any>;
+  cmdJsonMode?: boolean;
+  cmdJsonText?: string;
+  cmdSvc?: string;
+  cmdAct?: string;
   // camera
   camTopic?: string;
   camSubOnly?: boolean;   // 구독만(표시 안 함) — 로드 테스트용, 인코딩/표시 없이 구독 부하만
@@ -1464,25 +1470,28 @@ export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRe
   onChange: (p: Partial<Panel>) => void; onRemove: () => void; canRemove: boolean;
   onRefreshTopics?: () => void;
 }) {
-  const [mode, setMode] = useState<CmdMode>("publish");
   const [fields, setFields] = useState<Field[]>([]);
-  const [vals, setVals] = useState<Record<string, any>>({});
   const [msg, setMsg] = useState("");
-  const [jsonMode, setJsonMode] = useState(false);
-  const [jsonText, setJsonText] = useState("{}");
-  // service
   const [services, setServices] = useState<{ service: string; types: string[] }[]>([]);
-  const [svc, setSvc] = useState(""); const [svcType, setSvcType] = useState("");
-  // action
+  const [svcType, setSvcType] = useState("");
   const [acts, setActs] = useState<{ action: string; types: string[] }[]>([]);
-  const [act, setAct] = useState(""); const [actType, setActType] = useState(""); const [gid, setGid] = useState<string | null>(null);
+  const [actType, setActType] = useState(""); const [gid, setGid] = useState<string | null>(null);
   const actionEvents = useTb((s) => s.actions);
 
+  // 입력값까지 Panel 에 보존(스냅샷 저장). 런타임 전용(fields/msg/svcType…)만 로컬.
   const topic = panel.cmdTopic ?? "";
+  const mode: CmdMode = panel.cmdMode ?? "publish";
+  const setMode = (m: CmdMode) => { onChange({ cmdMode: m, cmdVals: {} }); setFields([]); setMsg(""); };
+  const vals = panel.cmdVals ?? {};
+  const setVals = (updater: (v: any) => any) => onChange({ cmdVals: updater(panel.cmdVals ?? {}) });
+  const jsonMode = panel.cmdJsonMode ?? false;
+  const jsonText = panel.cmdJsonText ?? "{}";
+  const svc = panel.cmdSvc ?? "";
+  const act = panel.cmdAct ?? "";
 
-  useEffect(() => { // publish 필드
+  useEffect(() => { // publish 필드 (입력값은 초기화하지 않음 — 스냅샷 복원 유지)
     if (mode !== "publish") return;
-    let alive = true; setVals({}); setMsg("");
+    let alive = true;
     if (!topic) { setFields([]); return; }
     api.topicFields(topic, typeOf(topic)).then((r) => alive && setFields(r.fields)).catch(() => alive && setFields([]));
     return () => { alive = false; };
@@ -1491,16 +1500,16 @@ export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRe
   useEffect(() => { if (mode === "action") api.actions().then(setActs).catch(() => {}); }, [mode]);
   useEffect(() => { // service 요청 필드
     if (mode !== "service") return;
-    let alive = true; setVals({}); setMsg("");
+    let alive = true;
     if (!svc) { setFields([]); setSvcType(""); return; }
-    api.serviceFields(svc).then((r) => { if (!alive) return; setFields(r.fields); setSvcType(r.type); setJsonText("{}"); }).catch(() => alive && setFields([]));
+    api.serviceFields(svc).then((r) => { if (!alive) return; setFields(r.fields); setSvcType(r.type); }).catch(() => alive && setFields([]));
     return () => { alive = false; };
   }, [svc, mode]); // eslint-disable-line
   useEffect(() => { // action goal 필드
     if (mode !== "action") return;
-    let alive = true; setVals({}); setMsg(""); setGid(null);
+    let alive = true; setGid(null);
     if (!act) { setFields([]); setActType(""); return; }
-    api.actionFields(act).then((r) => { if (!alive) return; setFields(r.fields); setActType(r.type); setJsonText("{}"); }).catch(() => alive && setFields([]));
+    api.actionFields(act).then((r) => { if (!alive) return; setFields(r.fields); setActType(r.type); }).catch(() => alive && setFields([]));
     return () => { alive = false; };
   }, [act, mode]); // eslint-disable-line
 
@@ -1525,10 +1534,10 @@ export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRe
   const renderSend = (onSend: () => void, label: string) => (
     <div className="space-y-2">
       <label className="flex items-center gap-1.5 text-xs text-ink-soft">
-        <input type="checkbox" checked={jsonMode} onChange={(e) => setJsonMode(e.target.checked)} /> JSON 직접 입력 (중첩 배열/복합/타입 미상)
+        <input type="checkbox" checked={jsonMode} onChange={(e) => onChange({ cmdJsonMode: e.target.checked })} /> JSON 직접 입력 (중첩 배열/복합/타입 미상)
       </label>
       {jsonMode ? (
-        <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} rows={5}
+        <textarea value={jsonText} onChange={(e) => onChange({ cmdJsonText: e.target.value })} rows={5}
           className="w-full rounded-lg border border-surface-line px-2 py-1 font-mono text-xs" placeholder='{"data": [1, 2, 3]}' />
       ) : fields.length > 0 ? <FieldForm fields={fields} vals={vals} setVals={setVals} />
         : <div className="text-xs text-ink-faint">필드 없음/미상 — 필요 시 JSON 직접 입력</div>}
@@ -1545,7 +1554,7 @@ export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRe
         <div className="flex items-center gap-1.5">
           <div className="flex rounded-lg bg-surface-muted p-0.5 text-xs">
             {(["publish", "service", "action"] as CmdMode[]).map((m) => (
-              <button key={m} onClick={() => { setMode(m); setFields([]); setMsg(""); setJsonMode(false); }}
+              <button key={m} onClick={() => setMode(m)}
                 className={cn("rounded-md px-2 py-0.5", mode === m ? "bg-surface text-ink shadow-card" : "text-ink-faint")}>
                 {m === "publish" ? "토픽" : m === "service" ? "서비스" : "액션"}
               </button>
@@ -1553,19 +1562,19 @@ export function CommandWidget({ panel, topics, typeOf, onChange, onRemove, canRe
           </div>
           {mode === "publish" && (
             <select value={topic} onMouseDown={onRefreshTopics} onFocus={onRefreshTopics}
-              onChange={(e) => onChange({ cmdTopic: e.target.value })} className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[180px]">
+              onChange={(e) => onChange({ cmdTopic: e.target.value, cmdVals: {} })} className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[180px]">
               <option value="">토픽…</option>
               {topic && !topics.some((t) => t.topic === topic) && <option value={topic}>{topic} (미발행)</option>}
               {topics.map((t) => <option key={t.topic} value={t.topic}>{t.topic}</option>)}
             </select>
           )}
           {mode === "service" && (
-            <select value={svc} onChange={(e) => setSvc(e.target.value)} className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[180px]">
+            <select value={svc} onChange={(e) => onChange({ cmdSvc: e.target.value, cmdVals: {} })} className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[180px]">
               <option value="">서비스…</option>{services.map((s) => <option key={s.service} value={s.service}>{s.service}</option>)}
             </select>
           )}
           {mode === "action" && (
-            <select value={act} onChange={(e) => setAct(e.target.value)} className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[180px]">
+            <select value={act} onChange={(e) => onChange({ cmdAct: e.target.value, cmdVals: {} })} className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs max-w-[180px]">
               <option value="">액션…</option>{acts.map((a) => <option key={a.action} value={a.action}>{a.action}</option>)}
             </select>
           )}
