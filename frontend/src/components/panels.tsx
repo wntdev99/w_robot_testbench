@@ -92,6 +92,29 @@ function systemFields(sys: any): Field[] {
   return out;
 }
 
+// 실시간 수신 메시지에서 '객체 배열 내부'의 수치 leaf 를 발견(introspection 이 버리는 메시지 배열 대응).
+// 숫자/불리언 배열은 introspection 의 array 칩이 담당하므로 파고들지 않는다. (인덱스 경로는 getPath 가 처리)
+function dataArrayLeaves(values: any): Field[] {
+  const out: Field[] = []; const ARR_CAP = 16, DEPTH = 8, ROW_CAP = 300;
+  const walk = (o: any, prefix: string, depth: number) => {
+    if (depth > DEPTH || out.length >= ROW_CAP || !o || typeof o !== "object") return;
+    for (const [k, v] of Object.entries(o)) {
+      const p = prefix ? `${prefix}.${k}` : k;
+      if (Array.isArray(v)) {
+        if (v.length && v[0] && typeof v[0] === "object") {   // 객체 배열만 인덱스로 파고듦
+          v.slice(0, ARR_CAP).forEach((el, i) => walk(el, `${p}.${i}`, depth + 1));
+        }
+      } else if (v && typeof v === "object") {
+        walk(v, p, depth + 1);
+      } else if (depth > 0 && (typeof v === "number" || typeof v === "boolean")) {
+        out.push({ path: p, base_type: typeof v === "number" ? "double" : "boolean", array: false, plottable: true });
+      }
+    }
+  };
+  walk(values, "", 0);
+  return out;
+}
+
 // 시스템 필드를 카테고리로 묶음 (해당 카테고리 선택 시 전체가 한 차트에)
 const SYS_GROUPS: { key: string; label: string; match: (p: string) => boolean }[] = [
   { key: "cpu", label: "CPU", match: (p) => p === "cpu_percent" },
@@ -211,7 +234,13 @@ export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemov
     return () => { alive = false; };
   }, [panel.topic, source]); // eslint-disable-line
 
-  const fields = source === "system" ? systemFields(system) : topicFields;
+  // 토픽 소스: introspection 필드 + 실시간 데이터에서 발견한 객체배열 내부 수치 leaf(중복 제거)
+  const fields = useMemo(() => {
+    if (source === "system") return systemFields(system);
+    const seen = new Set(topicFields.map((f) => f.path));
+    const extra = dataArrayLeaves(topicSample?.values).filter((f) => !seen.has(f.path));
+    return [...topicFields, ...extra];
+  }, [source, system, topicFields, topicSample]);
   const cats = source === "system" ? systemCategories(fields) : [];
   const sample = source === "system"
     ? (system ? { ts: system.ts, values: system } : undefined)
