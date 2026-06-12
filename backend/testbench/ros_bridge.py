@@ -82,6 +82,7 @@ class RosBridge(Node):
         self._thread: threading.Thread | None = None
         self._subs: dict[str, Any] = {}                  # topic -> Subscription
         self._sub_cbs: dict[str, dict[str, Callable[[dict], None]]] = {}   # topic -> {sid: cb}
+        self._pending: set[str] = set()                  # 타입 미상(토픽 미발행) → 출현 시 자동 구독
         # diagnostics 최신값: { hardware_id: { field: value, ... , "_name": status.name } }
         self._diag_latest: dict[str, dict[str, Any]] = {}
         self._diag_cbs: dict[str, Callable[[dict], None]] = {}             # sid -> cb
@@ -100,6 +101,8 @@ class RosBridge(Node):
         self._thread = threading.Thread(target=self._spin, name="ros-spin", daemon=True)
         self._thread.start()
         self._subscribe_diagnostics()
+        # 보류 구독(토픽 미발행) 자동 활성화 — 런치를 켜 토픽이 나타나면 재선택 없이 구독 시작
+        self.create_timer(2.0, self._activate_pending)
         logger.info("RosBridge spin 스레드 시작")
 
     def _spin(self) -> None:
@@ -211,9 +214,14 @@ class RosBridge(Node):
             return True
         type_str = type_str or self.get_topic_type(topic)
         if not type_str:
-            logger.warning("구독 실패(타입 미상): %s", topic)
-            self._sub_cbs.get(topic, {}).pop(sid, None)
-            return False
+            # 토픽 미발행 — 콜백은 유지하고 보류. 토픽이 나타나면 타이머가 자동 구독.
+            self._pending.add(topic)
+            logger.info("구독 보류(토픽 대기): %s", topic)
+            return True
+        return self._activate_sub(topic, type_str)
+
+    def _activate_sub(self, topic: str, type_str: str) -> bool:
+        """실제 ROS 구독 생성(타입 확정 시). subscribe·_activate_pending 공용."""
         try:
             msg_cls = get_message(_normalize_type(type_str))
         except Exception as exc:  # noqa: BLE001
@@ -231,8 +239,21 @@ class RosBridge(Node):
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT,
                          history=HistoryPolicy.KEEP_LAST)
         self._subs[topic] = self.create_subscription(msg_cls, topic, _on_msg, qos)
+        self._pending.discard(topic)
         logger.info("구독 시작: %s (%s)", topic, type_str)
         return True
+
+    def _activate_pending(self) -> None:
+        """타이머(2s, spin 스레드): 보류 토픽이 나타나면 구독 활성화."""
+        if not self._pending:
+            return
+        for topic in list(self._pending):
+            if topic in self._subs or not self._sub_cbs.get(topic):
+                self._pending.discard(topic)   # 이미 활성이거나 구독자 없음 → 정리
+                continue
+            t = self.get_topic_type(topic)
+            if t:
+                self._activate_sub(topic, t)   # 성공 시 내부에서 pending 제거
 
     def unsubscribe(self, topic: str, sid: str = "default") -> None:
         cbs = self._sub_cbs.get(topic)
@@ -241,6 +262,7 @@ class RosBridge(Node):
             if cbs:
                 return  # 다른 구독자가 남아있으면 ROS 구독 유지
             self._sub_cbs.pop(topic, None)
+        self._pending.discard(topic)   # 보류 중이었으면 함께 정리
         sub = self._subs.pop(topic, None)
         if sub is not None:
             self.destroy_subscription(sub)
