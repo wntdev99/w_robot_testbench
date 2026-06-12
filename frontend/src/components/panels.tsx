@@ -15,6 +15,8 @@ export type Panel = {
   type: PanelType;
   title?: string;
   view?: ViewMode;       // 표/그래프 (plot·diagnostics 패널)
+  windowSec?: number;    // 플롯이 보여줄 과거 데이터 길이(초) — 패널별
+
   // plot
   source?: PlotSource;   // 기본 "topic"
   topic?: string;
@@ -178,6 +180,12 @@ function Shell({ title, onRemove, canRemove, head, children }: {
   );
 }
 
+// 플롯 과거 데이터 길이(초) 옵션 — 패널별
+const WINDOW_OPTS: { v: number; label: string }[] = [
+  { v: 10, label: "10초" }, { v: 30, label: "30초" }, { v: 60, label: "1분" },
+  { v: 120, label: "2분" }, { v: 300, label: "5분" }, { v: 600, label: "10분" },
+];
+
 // ── 플롯 위젯 (소스: 토픽 / 시스템) ──
 export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemove, onRefreshTopics }: {
   panel: Panel; topics: Topic[]; typeOf: (t: string) => string | undefined;
@@ -243,7 +251,7 @@ export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemov
 
   const setSource = (s: PlotSource) => onChange({ source: s, topic: "", chosen: [], msgType: undefined, sysCat: undefined });
   const view = panel.view ?? "graph";
-  const windowSec = source === "system" ? 120 : 30;
+  const windowSec = panel.windowSec ?? (source === "system" ? 120 : 30);   // 패널별 과거 데이터 길이
   // 시스템 소스: 선택된 카테고리의 필드만 칩으로 (전체 나열 방지). 토픽 소스: 전체.
   const chipFields = (() => {
     if (source !== "system" || !panel.sysCat) return fields;
@@ -256,6 +264,12 @@ export function PlotWidget({ panel, topics, typeOf, onChange, onRemove, canRemov
       head={
         <div className="flex items-center gap-1.5">
           <ViewToggle view={view} onChange={(v) => onChange({ view: v })} />
+          {view === "graph" && (
+            <select value={windowSec} onChange={(e) => onChange({ windowSec: Number(e.target.value) })}
+              title="표시할 과거 데이터 길이" className="rounded-lg border border-surface-line bg-surface px-1.5 py-1 text-xs">
+              {WINDOW_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+            </select>
+          )}
           {/* 소스 토글 */}
           <div className="flex rounded-lg bg-surface-muted p-0.5 text-xs">
             {(["topic", "system"] as PlotSource[]).map((s) => (
