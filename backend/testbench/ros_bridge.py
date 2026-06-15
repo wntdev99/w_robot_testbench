@@ -16,6 +16,7 @@ import asyncio
 import logging
 import re
 import threading
+from collections import deque
 from typing import Any, Callable
 
 import rclpy
@@ -30,6 +31,11 @@ from rosidl_runtime_py import message_to_ordereddict, set_message_fields
 logger = logging.getLogger("testbench.ros")
 
 DIAGNOSTICS_TYPE = "diagnostic_msgs/msg/DiagnosticArray"
+
+HZ_TYPE = "std_msgs/msg/Float32"   # raw 구독 수신 Hz publish 타입
+HZ_SUFFIX = "/hz"                  # <topic>/hz 로 발행
+HZ_WINDOW_S = 5.0                  # Hz 측정 슬라이딩 윈도우(초)
+HZ_PUBLISH_S = 1.0                 # /hz publish 주기 게이트(초)
 
 
 def _normalize_type(type_str: str) -> str:
@@ -89,6 +95,8 @@ class RosBridge(Node):
         self._diag_sub = None
         self._raw_subs: dict[str, Any] = {}                               # topic -> Subscription
         self._raw_cbs: dict[str, dict[str, Callable[[Any], None]]] = {}    # topic -> {sid: cb}
+        self._hz_times: dict[str, deque] = {}      # raw topic -> 최근 수신 시각(슬라이딩 윈도우)
+        self._hz_last_pub: dict[str, float] = {}   # raw topic -> 마지막 /hz publish 시각
         self._pubs: dict[str, tuple] = {}                                 # "topic|type" -> (publisher, msg_cls)
         self._field_cache: dict[str, list[dict[str, Any]]] = {}   # type_str -> leaf fields
         self._goals: dict[str, tuple] = {}                        # goal_id -> (ActionClient, goal_handle)
@@ -285,6 +293,7 @@ class RosBridge(Node):
             return False
 
         def _on(msg: Any, _topic: str = topic) -> None:
+            self._measure_hz(_topic)   # 공통 훅 — 수신 Hz 측정 후 <topic>/hz 로 발행
             for c in list(self._raw_cbs.get(_topic, {}).values()):
                 try:
                     c(msg)
@@ -307,7 +316,40 @@ class RosBridge(Node):
         sub = self._raw_subs.pop(topic, None)
         if sub is not None:
             self.destroy_subscription(sub)
+            self._teardown_hz(topic)
             logger.info("raw 구독 해제: %s", topic)
+
+    # ── raw 구독 공통 훅: 수신 Hz 측정 → <topic>/hz (std_msgs/Float32) ──
+    def _measure_hz(self, topic: str) -> None:
+        """raw 구독 콜백마다 호출 — 슬라이딩 윈도우로 수신 Hz 를 계산해
+        <topic>/hz 로 HZ_PUBLISH_S 주기로 발행. publish 실패는 데이터 콜백을 막지 않는다."""
+        if topic.endswith(HZ_SUFFIX):   # 자기 자신이 낸 hz 토픽 재측정 방지(무한 생성 차단)
+            return
+        now = self.get_clock().now().nanoseconds / 1e9
+        win = self._hz_times.setdefault(topic, deque(maxlen=512))
+        win.append(now)
+        while win and now - win[0] > HZ_WINDOW_S:
+            win.popleft()
+        if now - self._hz_last_pub.get(topic, 0.0) < HZ_PUBLISH_S:
+            return
+        self._hz_last_pub[topic] = now
+        hz = (len(win) - 1) / (win[-1] - win[0]) if len(win) >= 2 and win[-1] > win[0] else 0.0
+        try:
+            self.publish_once(f"{topic}{HZ_SUFFIX}", HZ_TYPE, {"data": float(hz)})
+        except Exception:  # noqa: BLE001 — hz publish 실패가 데이터 콜백을 막지 않도록
+            logger.debug("hz publish 실패 %s", topic, exc_info=True)
+
+    def _teardown_hz(self, topic: str) -> None:
+        """raw 구독 해제 시 Hz 윈도우/퍼블리셔 회수."""
+        self._hz_times.pop(topic, None)
+        self._hz_last_pub.pop(topic, None)
+        key = f"{topic}{HZ_SUFFIX}|{_normalize_type(HZ_TYPE)}"
+        entry = self._pubs.pop(key, None)
+        if entry is not None:
+            try:
+                self.destroy_publisher(entry[0])
+            except Exception:  # noqa: BLE001
+                logger.debug("hz 퍼블리셔 해제 실패 %s", topic, exc_info=True)
 
     # ── diagnostics 상시 구독 (다중 콜백 sid) ──
     def set_diagnostics_callback(self, cb: Callable[[dict], None], sid: str = "default") -> None:
