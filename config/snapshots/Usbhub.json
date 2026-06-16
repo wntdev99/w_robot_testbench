@@ -1,11 +1,11 @@
 {
   "name": "Usbhub",
-  "updated": 1781254658.5638406,
+  "updated": 1781265841.0061328,
   "data": {
     "cols": 2,
     "panels": [
       {
-        "id": "w71",
+        "id": "w1",
         "type": "launch",
         "topic": "",
         "chosen": [],
@@ -17,7 +17,7 @@
         "launchArgs": ""
       },
       {
-        "id": "w73",
+        "id": "w2",
         "type": "launch",
         "topic": "",
         "chosen": [],
@@ -29,7 +29,7 @@
         "launchArgs": ""
       },
       {
-        "id": "w72",
+        "id": "w3",
         "type": "message",
         "topic": "/usb_camera_monitor/devices",
         "chosen": [],
@@ -37,7 +37,7 @@
         "msgType": "generate_orbbec_launch/msg/OrbbecUsbDeviceArray"
       },
       {
-        "id": "w75",
+        "id": "w4",
         "type": "message",
         "topic": "/exsys_hub_node/hub_status",
         "chosen": [],
@@ -45,18 +45,26 @@
         "msgType": "exsys_usb_hub_msgs/msg/HubStatus"
       },
       {
-        "id": "w76",
+        "id": "w5",
         "type": "command",
         "topic": "",
         "chosen": [],
-        "cmdTopic": ""
+        "cmdTopic": "",
+        "cmdMode": "service",
+        "cmdVals": {
+          "port": "bottom_view_right_camera",
+          "state": true
+        },
+        "cmdSvc": "/exsys_hub_node/set_port"
       },
       {
-        "id": "w77",
+        "id": "w6",
         "type": "command",
         "topic": "",
         "chosen": [],
-        "cmdTopic": ""
+        "cmdTopic": "",
+        "cmdMode": "publish",
+        "cmdVals": {}
       }
     ]
   }

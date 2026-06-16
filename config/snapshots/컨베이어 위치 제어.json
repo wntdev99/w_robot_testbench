@@ -1,0 +1,69 @@
+{
+  "name": "컨베이어 위치 제어",
+  "updated": 1781267437.5627935,
+  "data": {
+    "cols": 2,
+    "panels": [
+      {
+        "id": "w15",
+        "type": "plot",
+        "topic": "/conveyor_ired_broadcaster/values",
+        "chosen": [
+          "values"
+        ],
+        "cmdTopic": "",
+        "msgType": "control_msgs/msg/Float64Values",
+        "windowSec": 600
+      },
+      {
+        "id": "w16",
+        "type": "plot",
+        "topic": "/joint_states",
+        "chosen": [
+          "position"
+        ],
+        "cmdTopic": "",
+        "msgType": "sensor_msgs/msg/JointState",
+        "windowSec": 120,
+        "hiddenSeries": [
+          "position[door_S1]",
+          "position[steering_LH]",
+          "position[steering_LT]",
+          "position[steering_RH]",
+          "position[steering_RT]",
+          "position[wheel_LH]",
+          "position[wheel_RT]"
+        ]
+      },
+      {
+        "id": "w17",
+        "type": "command",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "/conveyor_position_controller/commands",
+        "cmdVals": {
+          "data": "0"
+        }
+      },
+      {
+        "id": "w18",
+        "type": "plot",
+        "topic": "/joint_states",
+        "chosen": [
+          "velocity"
+        ],
+        "cmdTopic": "",
+        "msgType": "sensor_msgs/msg/JointState",
+        "hiddenSeries": [
+          "velocity[door_S1]",
+          "velocity[steering_LH]",
+          "velocity[steering_LT]",
+          "velocity[steering_RH]",
+          "velocity[steering_RT]",
+          "velocity[wheel_LH]",
+          "velocity[wheel_RT]"
+        ]
+      }
+    ]
+  }
+}

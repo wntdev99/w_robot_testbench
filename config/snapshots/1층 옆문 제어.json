@@ -1,0 +1,75 @@
+{
+  "name": "1층 옆문 제어",
+  "updated": 1781267598.8682604,
+  "data": {
+    "cols": 2,
+    "panels": [
+      {
+        "id": "w38",
+        "type": "command",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "/door_s1_controller/command",
+        "cmdVals": {
+          "data": "open"
+        }
+      },
+      {
+        "id": "w39",
+        "type": "command",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "/door_s1_controller/command",
+        "cmdVals": {
+          "data": "close"
+        }
+      },
+      {
+        "id": "w40",
+        "type": "plot",
+        "topic": "/joint_states",
+        "chosen": [
+          "position"
+        ],
+        "cmdTopic": "",
+        "msgType": "sensor_msgs/msg/JointState",
+        "hiddenSeries": [
+          "position[conveyor_1f]",
+          "position[steering_LH]",
+          "position[steering_LT]",
+          "position[steering_RH]",
+          "position[steering_RT]",
+          "position[wheel_LH]",
+          "position[wheel_RT]"
+        ]
+      },
+      {
+        "id": "w41",
+        "type": "plot",
+        "topic": "/joint_states",
+        "chosen": [
+          "effort"
+        ],
+        "cmdTopic": "",
+        "msgType": "sensor_msgs/msg/JointState",
+        "hiddenSeries": [
+          "effort[conveyor_1f]",
+          "effort[steering_LH]",
+          "effort[steering_LT]",
+          "effort[steering_RH]",
+          "effort[steering_RT]",
+          "effort[wheel_LH]",
+          "effort[wheel_RT]"
+        ]
+      },
+      {
+        "id": "w42",
+        "type": "message",
+        "topic": "/door_s1_controller/status",
+        "chosen": [],
+        "cmdTopic": "",
+        "msgType": "std_msgs/msg/String"
+      }
+    ]
+  }
+}

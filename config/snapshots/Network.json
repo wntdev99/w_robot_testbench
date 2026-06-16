@@ -1,0 +1,137 @@
+{
+  "name": "Network",
+  "updated": 1781524934.2471628,
+  "data": {
+    "cols": 2,
+    "panels": [
+      {
+        "id": "w1",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "generate_orbbec_launch",
+        "launchFile": "link_latency.launch.py",
+        "launchArgs": ""
+      },
+      {
+        "id": "w2",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "generate_orbbec_launch",
+        "launchFile": "wifi_wan_monitor.launch.py",
+        "launchArgs": ""
+      },
+      {
+        "id": "w3",
+        "type": "launch",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "launchSelected": true,
+        "launchMachine": "server",
+        "launchPkg": "generate_orbbec_launch",
+        "launchFile": "router_throughput_monitor.launch.py",
+        "launchArgs": ""
+      },
+      {
+        "id": "w4",
+        "type": "plot",
+        "topic": "/wifi_wan_monitor/wifi_wan",
+        "chosen": [
+          "reachable",
+          "associated",
+          "signal_dbm",
+          "noise_dbm"
+        ],
+        "cmdTopic": "",
+        "msgType": "generate_orbbec_launch/msg/WifiWanStatus",
+        "windowSec": 300
+      },
+      {
+        "id": "w5",
+        "type": "plot",
+        "topic": "/link_latency_gateway/latency",
+        "chosen": [
+          "valid",
+          "rtt_ms",
+          "outage_count"
+        ],
+        "cmdTopic": "",
+        "msgType": "generate_orbbec_launch/msg/PingLatency",
+        "windowSec": 300
+      },
+      {
+        "id": "w6",
+        "type": "plot",
+        "topic": "/link_latency_internet/latency",
+        "chosen": [
+          "valid",
+          "rtt_ms",
+          "outage_count"
+        ],
+        "cmdTopic": "",
+        "msgType": "generate_orbbec_launch/msg/PingLatency",
+        "windowSec": 300
+      },
+      {
+        "id": "w7",
+        "type": "plot",
+        "topic": "/link_latency_gateway/outage",
+        "chosen": [
+          "duration_sec",
+          "outage_count"
+        ],
+        "cmdTopic": "",
+        "msgType": "generate_orbbec_launch/msg/LinkOutage",
+        "windowSec": 300
+      },
+      {
+        "id": "w8",
+        "type": "plot",
+        "topic": "/link_latency_internet/outage",
+        "chosen": [
+          "duration_sec",
+          "outage_count"
+        ],
+        "cmdTopic": "",
+        "msgType": "generate_orbbec_launch/msg/LinkOutage",
+        "windowSec": 300
+      },
+      {
+        "id": "w9",
+        "type": "plot",
+        "topic": "/router_throughput_monitor/br_lan",
+        "chosen": [
+          "rx_bps",
+          "tx_bps"
+        ],
+        "cmdTopic": "",
+        "msgType": "generate_orbbec_launch/msg/NetThroughput",
+        "windowSec": 300,
+        "hiddenSeries": [
+          "rx_bytes",
+          "tx_bytes"
+        ]
+      },
+      {
+        "id": "w10",
+        "type": "plot",
+        "topic": "/router_throughput_monitor/sta1",
+        "chosen": [
+          "rx_bps",
+          "tx_bps"
+        ],
+        "cmdTopic": "",
+        "msgType": "generate_orbbec_launch/msg/NetThroughput",
+        "windowSec": 300
+      }
+    ]
+  }
+}

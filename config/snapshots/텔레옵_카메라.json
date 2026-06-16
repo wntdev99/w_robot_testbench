@@ -1,81 +1,64 @@
 {
-  "name": "Battery&Camera",
-  "updated": 1781252144.199239,
+  "name": "텔레옵+카메라",
+  "updated": 1781591212.0355797,
   "data": {
     "cols": 2,
     "panels": [
       {
-        "id": "w46",
+        "id": "w14",
+        "type": "teleop",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": ""
+      },
+      {
+        "id": "w15",
+        "type": "plot",
+        "topic": "",
+        "chosen": [
+          "latency.internet_ms",
+          "latency.controller_ms"
+        ],
+        "cmdTopic": "",
+        "source": "system",
+        "sysCat": "latency"
+      },
+      {
+        "id": "w16",
+        "type": "plot",
+        "topic": "/swerve_controller/cmd_vel",
+        "chosen": [
+          "linear.x",
+          "linear.y",
+          "angular.z"
+        ],
+        "cmdTopic": "",
+        "msgType": "geometry_msgs/msg/Twist"
+      },
+      {
+        "id": "w17",
+        "type": "plot",
+        "topic": "/joint_states",
+        "chosen": [
+          "effort"
+        ],
+        "cmdTopic": "",
+        "msgType": "sensor_msgs/msg/JointState"
+      },
+      {
+        "id": "w18",
         "type": "launch",
         "topic": "",
         "chosen": [],
         "cmdTopic": "",
         "launchSelected": true,
         "launchMachine": "server",
-        "launchPkg": "daly_bms_driver",
-        "launchFile": "daly_bms.launch.py",
+        "launchPkg": "generate_orbbec_launch",
+        "launchFile": "multi_camera_standalone.launch.py",
         "launchArgs": ""
       },
       {
-        "id": "w47",
-        "type": "launch",
-        "topic": "",
-        "chosen": [],
-        "cmdTopic": "",
-        "launchSelected": true,
-        "launchMachine": "server",
-        "launchPkg": "elyx_rx_driver",
-        "launchFile": "elyx_rx.launch.py",
-        "launchArgs": ""
-      },
-      {
-        "id": "w48",
-        "type": "plot",
-        "topic": "/daly_bms_node/status",
-        "chosen": [
-          "total_voltage",
-          "current",
-          "soc"
-        ],
-        "cmdTopic": "",
-        "msgType": "daly_bms_interfaces/msg/DalyBmsStatus"
-      },
-      {
-        "id": "w49",
-        "type": "plot",
-        "topic": "/elyx_rx_node/status",
-        "chosen": [
-          "voltage",
-          "current"
-        ],
-        "cmdTopic": "",
-        "msgType": "elyx_rx_interfaces/msg/ElyxRxStatus"
-      },
-      {
-        "id": "w50",
-        "type": "plot",
-        "topic": "/daly_bms_node/status",
-        "chosen": [
-          "max_cell_voltage_mv",
-          "min_cell_voltage_mv"
-        ],
-        "cmdTopic": "",
-        "msgType": "daly_bms_interfaces/msg/DalyBmsStatus"
-      },
-      {
-        "id": "w51",
-        "type": "launch",
-        "topic": "",
-        "chosen": [],
-        "cmdTopic": "",
-        "launchSelected": true,
-        "launchMachine": "server",
-        "launchPkg": "w_type_mw",
-        "launchFile": "multi_camera_synced.launch.py",
-        "launchArgs": ""
-      },
-      {
-        "id": "w52",
+        "id": "w19",
         "type": "launch",
         "topic": "",
         "chosen": [],
@@ -87,7 +70,7 @@
         "launchArgs": ""
       },
       {
-        "id": "w53",
+        "id": "w20",
         "type": "message",
         "topic": "/usb_camera_monitor/devices",
         "chosen": [],
@@ -95,34 +78,34 @@
         "msgType": "generate_orbbec_launch/msg/OrbbecUsbDeviceArray"
       },
       {
-        "id": "w54",
+        "id": "w21",
         "type": "camera",
         "topic": "",
         "chosen": [],
         "cmdTopic": "",
         "camTopic": "/bottom_view_middle_camera/color/image_raw/compressed",
-        "camSubOnly": true
+        "camSubOnly": false
       },
       {
-        "id": "w55",
+        "id": "w22",
         "type": "camera",
         "topic": "",
         "chosen": [],
         "cmdTopic": "",
         "camTopic": "/bottom_view_rear_camera/color/image_raw/compressed",
-        "camSubOnly": true
+        "camSubOnly": false
       },
       {
-        "id": "w56",
+        "id": "w23",
         "type": "camera",
         "topic": "",
         "chosen": [],
         "cmdTopic": "",
         "camTopic": "/front_view_middle_camera/color/image_raw/compressed",
-        "camSubOnly": true
+        "camSubOnly": false
       },
       {
-        "id": "w57",
+        "id": "w24",
         "type": "camera",
         "topic": "",
         "chosen": [],
@@ -131,7 +114,7 @@
         "camSubOnly": true
       },
       {
-        "id": "w58",
+        "id": "w25",
         "type": "camera",
         "topic": "",
         "chosen": [],
@@ -140,7 +123,7 @@
         "camSubOnly": true
       },
       {
-        "id": "w59",
+        "id": "w26",
         "type": "camera",
         "topic": "",
         "chosen": [],
@@ -149,7 +132,7 @@
         "camSubOnly": true
       },
       {
-        "id": "w60",
+        "id": "w27",
         "type": "camera",
         "topic": "",
         "chosen": [],
@@ -158,7 +141,7 @@
         "camSubOnly": true
       },
       {
-        "id": "w61",
+        "id": "w28",
         "type": "camera",
         "topic": "",
         "chosen": [],
@@ -167,7 +150,7 @@
         "camSubOnly": true
       },
       {
-        "id": "w62",
+        "id": "w29",
         "type": "camera",
         "topic": "",
         "chosen": [],
@@ -176,7 +159,7 @@
         "camSubOnly": true
       },
       {
-        "id": "w63",
+        "id": "w30",
         "type": "camera",
         "topic": "",
         "chosen": [],
@@ -185,7 +168,7 @@
         "camSubOnly": true
       },
       {
-        "id": "w64",
+        "id": "w31",
         "type": "camera",
         "topic": "",
         "chosen": [],
@@ -194,13 +177,47 @@
         "camSubOnly": true
       },
       {
-        "id": "w65",
+        "id": "w32",
         "type": "camera",
         "topic": "",
         "chosen": [],
         "cmdTopic": "",
         "camTopic": "/bottom_view_left_camera/depth/image_raw",
         "camSubOnly": true
+      },
+      {
+        "id": "w33",
+        "type": "message",
+        "topic": "/kernel_log_monitor/kernel_log",
+        "chosen": [],
+        "cmdTopic": "",
+        "msgType": "generate_orbbec_launch/msg/KernelLogEntry"
+      },
+      {
+        "id": "w34",
+        "type": "plot",
+        "topic": "/usb_camera_monitor/devices",
+        "chosen": [
+          "count",
+          "devices.0.disconnect_count",
+          "devices.1.disconnect_count",
+          "devices.2.disconnect_count",
+          "devices.3.disconnect_count",
+          "devices.4.disconnect_count",
+          "devices.5.disconnect_count"
+        ],
+        "cmdTopic": "",
+        "msgType": "generate_orbbec_launch/msg/OrbbecUsbDeviceArray"
+      },
+      {
+        "id": "w35",
+        "type": "plot",
+        "topic": "/bottom_view_left_camera/color/image_raw/compressed/hz",
+        "chosen": [
+          "data"
+        ],
+        "cmdTopic": "",
+        "msgType": "std_msgs/msg/Float32"
       }
     ]
   }

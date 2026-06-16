@@ -1,0 +1,25 @@
+{
+  "name": "모터 전류 확인",
+  "updated": 1781501337.3605528,
+  "data": {
+    "cols": 2,
+    "panels": [
+      {
+        "id": "w139",
+        "type": "plot",
+        "topic": "/joint_states",
+        "chosen": [
+          "effort"
+        ],
+        "cmdTopic": "",
+        "msgType": "sensor_msgs/msg/JointState",
+        "hiddenSeries": [
+          "effort[conveyor_1f]",
+          "effort[door_S1]",
+          "effort[wheel_LH]",
+          "effort[wheel_RT]"
+        ]
+      }
+    ]
+  }
+}

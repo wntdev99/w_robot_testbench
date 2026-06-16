@@ -1,0 +1,68 @@
+{
+  "name": "모터 전류 확인 + 텔레옵",
+  "updated": 1781501400.9816966,
+  "data": {
+    "cols": 2,
+    "panels": [
+      {
+        "id": "w160",
+        "type": "plot",
+        "topic": "/joint_states",
+        "chosen": [
+          "effort"
+        ],
+        "cmdTopic": "",
+        "msgType": "sensor_msgs/msg/JointState",
+        "hiddenSeries": [
+          "effort[conveyor_1f]",
+          "effort[door_S1]",
+          "effort[wheel_LH]",
+          "effort[wheel_RT]"
+        ],
+        "windowSec": 300
+      },
+      {
+        "id": "w161",
+        "type": "teleop",
+        "topic": "",
+        "chosen": [],
+        "cmdTopic": "",
+        "teleSrc": "gamepad"
+      },
+      {
+        "id": "w162",
+        "type": "plot",
+        "topic": "",
+        "chosen": [
+          "latency.internet_ms",
+          "latency.controller_ms"
+        ],
+        "cmdTopic": "",
+        "source": "system",
+        "sysCat": "latency"
+      },
+      {
+        "id": "w163",
+        "type": "plot",
+        "topic": "/swerve_controller/cmd_vel",
+        "chosen": [
+          "linear.x",
+          "linear.y",
+          "angular.z"
+        ],
+        "cmdTopic": "",
+        "msgType": "geometry_msgs/msg/Twist"
+      },
+      {
+        "id": "w164",
+        "type": "plot",
+        "topic": "/joint_states",
+        "chosen": [
+          "effort"
+        ],
+        "cmdTopic": "",
+        "msgType": "sensor_msgs/msg/JointState"
+      }
+    ]
+  }
+}
