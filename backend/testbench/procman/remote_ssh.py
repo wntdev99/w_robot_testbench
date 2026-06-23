@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import shlex
 
 logger = logging.getLogger("testbench.procman.ssh")
@@ -113,16 +114,39 @@ class RemoteRunner:
         logger.info("원격 종료 [%s] rc=%s", key, rc)
         return rc == 0
 
-    async def kill_ros2(self) -> bool:
-        """원격(201)의 ros2 관련 프로세스 일괄 종료. [r] 트릭으로 pkill 자기 매칭 회피.
-        반환: 명령이 원격에 정상 전달됐는지(rc==0). 실패면 호출부가 UI 에 노출."""
-        pats = ["[r]os2 launch", "[r]os2 run", "rmw_[z]enohd", "ros2_[c]ontrol_node",
-                "[r]obot_state_publisher", "--[r]os-args"]
-        intc = "; ".join(f"pkill -INT -f '{p}'" for p in pats)
-        killc = "; ".join(f"pkill -KILL -f '{p}'" for p in pats)
-        rc, _ = await self._run(f"{self._setup}; {intc}; sleep 1.5; {killc}; true", timeout=12)
-        logger.info("원격 ros2 종료 요청 @%s rc=%s", self._host, rc)
-        return rc == 0
+    async def kill_ros2(self) -> dict:
+        """원격(201)의 ros2 프로세스 일괄 종료 + 검증 루프.
+
+        1) 명시 패턴 SIGINT(정상 종료 유도) + `ros2 daemon stop`
+        2) 1.5초 후 명시 패턴 + 실행경로(/opt/ros/<d>/lib, colcon_ws/install/lib) SIGKILL
+        3) 광역 잔존 스윕: ROS 로 식별되는 PID 중 '우리 셸의 조상'을 뺀 것들을 직접 kill -9
+        4) 남은 개수를 TB_REMAIN 으로 보고(권한/defunct 등 패턴이 못 잡은 예외 가시화)
+
+        bracket 트릭([r]/[o]/[c]·[-][-])으로 pkill 자기 매칭 회피, 경로는 '/lib/' 로 좁혀
+        현재 셸이 source 한 setup.bash(=/opt/ros/.../setup.bash, install/setup.bash) 와의 매칭을 피한다.
+        반환: {ok: ssh 전달 성공(rc==0), remaining: 스윕 후 잔존 개수|None}."""
+        expl = ["[r]os2 launch", "[r]os2 run", "rmw_[z]enohd", "ros2_[c]ontrol",
+                "[r]obot_state_publisher", "[-][-]ros-args"]
+        paths = ["/[o]pt/ros/[^/]*/lib/", "[c]olcon_ws/install/lib/"]
+        intc = "; ".join(f"pkill -INT -f '{p}'" for p in expl)
+        killc = "; ".join(f"pkill -KILL -f '{p}'" for p in expl + paths)
+        # ROS 식별 광역 패턴(잔존 스윕용) — 노드 실행경로/인자/데몬/컨테이너까지
+        broad = "/opt/ros/[^/]+/lib/|colcon_ws/install/lib/|--ros-args|rmw_zenohd|ros2cli|component_container"
+        sweep = (
+            'ME=$$; ANC=" $ME "; A=$ME; '
+            'for i in 1 2 3 4 5 6; do A=$(ps -o ppid= -p "$A" 2>/dev/null | tr -d " "); [ -z "$A" ] && break; ANC="$ANC$A "; done; '
+            f"BROAD='{broad}'; "
+            'for p in $(pgrep -f "$BROAD" 2>/dev/null); do case "$ANC" in *" $p "*) : ;; *) kill -9 "$p" 2>/dev/null ;; esac; done; '
+            'sleep 0.3; LEFT=0; for p in $(pgrep -f "$BROAD" 2>/dev/null); do case "$ANC" in *" $p "*) : ;; *) LEFT=$((LEFT+1)) ;; esac; done; '
+            'echo "TB_REMAIN=$LEFT"; true'
+        )
+        script = (f"{self._setup}; {intc}; ros2 daemon stop >/dev/null 2>&1 || true; "
+                  f"sleep 1.5; {killc}; {sweep}")
+        rc, out = await self._run(script, timeout=20)
+        m = re.search(r"TB_REMAIN=(\d+)", out or "")
+        remaining = int(m.group(1)) if m else None
+        logger.info("원격 ros2 종료 @%s rc=%s 잔존=%s", self._host, rc, remaining)
+        return {"ok": rc == 0, "remaining": remaining}
 
     async def stop_all(self) -> None:
         for key in list(self._launched.keys()):

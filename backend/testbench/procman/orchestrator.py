@@ -251,8 +251,10 @@ class Orchestrator:
         if "server" in scope:
             out["server"] = kill_local_ros2()
         if "controller" in scope and self._remote:
-            ok = await self._remote.kill_ros2()
-            out["controller"] = "killed" if ok else "ssh_failed"   # 실패 시 UI 에 노출
+            res = await self._remote.kill_ros2()
+            out["controller"] = "killed" if res.get("ok") else "ssh_failed"   # 실패 시 UI 에 노출
+            if res.get("remaining"):   # 패턴이 못 잡은 잔존(권한/defunct 등) 가시화
+                out["controller_remaining"] = res["remaining"]
         return out
 
     def dismiss_startup(self) -> dict:
