@@ -1,0 +1,49 @@
+{
+  "manifest_version": "0.2",
+  "name": "w_robot",
+  "display_name": "W 로봇 테스트벤치",
+  "version": "0.2.0",
+  "description": "Claude로 로봇 테스트벤치를 조작·관측·테스트합니다. 기존 testbench 서버에 연결하는 얇은 클라이언트(백엔드 무수정).",
+  "long_description": "하드웨어팀이 자연어로 로봇을 조작하고 테스트를 설계·실행하도록 돕는 MCP. 설치 후 아래 '서버 주소'만 확인하면 됩니다. 로봇이 켜져 있고 같은 Wi-Fi에 연결돼 있어야 합니다.",
+  "author": { "name": "WATT Robotics" },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "TESTBENCH_BASE": "${user_config.backend_url}",
+        "LOADCELL_BASE": "${user_config.loadcell_url}",
+        "MCP_ALLOW_DESTRUCTIVE": "${user_config.allow_destructive}"
+      }
+    }
+  },
+  "user_config": {
+    "backend_url": {
+      "type": "string",
+      "title": "로봇 서버 주소",
+      "description": "테스트벤치 서버 주소. 보통 로봇 서버 PC1. 예) http://192.168.34.202:8080",
+      "default": "http://192.168.34.202:8080",
+      "required": true
+    },
+    "loadcell_url": {
+      "type": "string",
+      "title": "로드셀 서버 주소 (선택)",
+      "description": "힘 측정 로드셀 서버를 쓸 때만. 별도 설치본. 같은 PC면 http://localhost:8765",
+      "default": "http://localhost:8765",
+      "required": false
+    },
+    "allow_destructive": {
+      "type": "string",
+      "title": "관리자: 파괴적 동작 허용 (0/1)",
+      "description": "기존 ros2 일괄 종료·시작플랜 적용 같은 위험 동작 허용 여부. 일반 사용자는 0으로 두세요.",
+      "default": "0",
+      "required": false
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "runtimes": { "node": ">=18.0.0" }
+  }
+}

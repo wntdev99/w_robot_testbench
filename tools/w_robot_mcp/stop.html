@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>🛑 로봇 비상정지</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 18px;
+    background: #0f1115; color: #e8eaed;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+  }
+  #stop {
+    width: 320px; height: 320px; border-radius: 50%; border: none;
+    background: #e5342b; color: #fff; font-size: 56px; font-weight: 800;
+    cursor: pointer; box-shadow: 0 0 0 12px #3a0f0d, 0 12px 40px rgba(0,0,0,.5);
+    transition: transform .05s ease, background .1s ease;
+  }
+  #stop:hover { background: #f04438; }
+  #stop:active { transform: scale(.96); background: #b42318; }
+  #stop.flash { background: #fff; color: #b42318; }
+  .row { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  input { background: #1b1e24; color: #e8eaed; border: 1px solid #333; border-radius: 8px; padding: 8px 10px; width: 320px; }
+  #log { font-size: 13px; color: #9aa0a6; min-height: 20px; text-align: center; }
+  .hint { font-size: 12px; color: #6b7177; max-width: 360px; text-align: center; line-height: 1.5; }
+  kbd { background:#1b1e24; border:1px solid #333; border-radius:4px; padding:1px 6px; }
+</style>
+</head>
+<body>
+  <button id="stop" title="클릭 또는 Space/Esc">STOP</button>
+  <div id="log">대기 중</div>
+  <div class="row">
+    <span>서버</span>
+    <input id="base" value="http://192.168.34.202:8080" />
+  </div>
+  <div class="hint">
+    이 버튼은 <b>Claude와 무관하게</b> 로봇 서버로 직접 비상정지를 보냅니다
+    (속도 0 + 컨트롤러 비활성 + 주행 취소).<br />
+    단축키: <kbd>Space</kbd> 또는 <kbd>Esc</kbd> · 안정성을 위해 3회 전송합니다.
+  </div>
+
+<script>
+  const btn = document.getElementById("stop");
+  const log = document.getElementById("log");
+  const baseEl = document.getElementById("base");
+
+  async function fireStop() {
+    const base = baseEl.value.replace(/\/$/, "");
+    const url = base + "/api/emergency/stop";
+    const t = new Date().toLocaleTimeString();
+    btn.classList.add("flash");
+    setTimeout(() => btn.classList.remove("flash"), 150);
+    // no-cors: 응답은 못 읽어도(opaque) 서버는 요청을 처리한다. 본문 없는 단순 POST → preflight 없음.
+    let sent = 0;
+    for (let i = 0; i < 3; i++) {
+      try { await fetch(url, { method: "POST", mode: "no-cors", cache: "no-store" }); sent++; }
+      catch (e) { /* 네트워크 단절 등 */ }
+    }
+    log.textContent = sent
+      ? `🛑 정지 전송됨 (${sent}/3) — ${t}`
+      : `⚠ 전송 실패 — 서버 주소/네트워크 확인 (${t})`;
+  }
+
+  btn.addEventListener("click", fireStop);
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space" || e.code === "Escape") { e.preventDefault(); fireStop(); }
+  });
+</script>
+</body>
+</html>

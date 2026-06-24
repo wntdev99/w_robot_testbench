@@ -17,3 +17,4 @@ recordings/
 #config/snapshots/
 #config/startup.json
 #config/server.env
+.DS_Store

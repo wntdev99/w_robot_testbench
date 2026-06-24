@@ -1,0 +1,11 @@
+# 파이썬 캐시 / 백업
+__pycache__/
+*.bak.py
+
+# 머신별 설정 (저장 폴더 경로 등) — 각자 생성
+/config.json
+
+# 생성물(보정·측정 데이터) — 코드가 아님
+/calibration_history.csv
+/*_*.json
+/*_*.csv

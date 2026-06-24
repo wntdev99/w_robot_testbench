@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로드셀 측정 대시보드</title>
+<style>
+  :root{
+    --bg:#1e1e22; --panel:#26262b; --panel2:#2c2c33; --line:#34343c;
+    --txt:#e8e8ee; --mut:#9a9aa2; --green:#5DCAA5; --red:#E06A50;
+    --blue:#2F6FED; --teal:#14A88B; --amber:#E08A1E; --purple:#7C5CDB;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:14px}
+  .wrap{max-width:760px;margin:0 auto;padding:16px}
+  .panel{background:var(--panel);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+  .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .row + .row{margin-top:8px}
+  label.tag{width:130px;color:var(--txt);font-weight:700}
+  select{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+         border-radius:6px;padding:7px 9px;font-size:14px;min-width:170px}
+  button{border:0;border-radius:8px;color:#fff;font-weight:700;font-size:13px;
+         padding:8px 14px;cursor:pointer;transition:filter .12s}
+  button:hover{filter:brightness(1.12)} button:active{filter:brightness(.9)}
+  .b-blue{background:var(--blue)} .b-teal{background:var(--teal)}
+  .b-amber{background:var(--amber)} .b-purple{background:var(--purple)}
+  .b-gray{background:#3a3a40} .b-red{background:#7a3a3a}
+  .dot{font-weight:700;margin-left:6px}
+  .dot.on{color:var(--green)} .dot.off{color:var(--red)}
+  .total{text-align:center;margin:8px 0 2px}
+  .total .num{font-size:54px;font-weight:800;color:var(--green);line-height:1}
+  .total .cap{color:var(--mut)} #status{text-align:center;color:var(--mut);min-height:18px}
+  .chrow{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .chrow .name{width:36px;font-weight:700;color:#ddd}
+  .track{flex:1;height:20px;background:#2c2c30;border-radius:4px;overflow:hidden}
+  .fill{height:100%;width:0;background:var(--purple);transition:width .1s,background .1s}
+  .chrow .kg{width:84px;text-align:right} .chrow .vv{width:96px;text-align:right;color:#777;font-size:11px}
+  h3{margin:4px 0 8px;font-size:15px}
+  .guide{color:#bcbcc4;font-size:12.5px;line-height:1.5}
+  .guide b{color:var(--txt)}
+  .hint{color:var(--mut);font-size:12px;line-height:1.5;padding-left:130px}
+  .hint b{color:var(--teal)}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:7px 6px;text-align:center;font-size:13px}
+  th{color:var(--mut);border-bottom:1px solid var(--line)}
+  td.name{text-align:left} tr:nth-child(even) td{background:var(--panel2)}
+  .pass{color:var(--green);font-weight:700} .fail{color:var(--red);font-weight:700}
+  /* modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;
+         align-items:center;justify-content:center;z-index:10}
+  .modal.show{display:flex}
+  .card{background:var(--bg);border:1px solid var(--line);border-radius:12px;
+        padding:18px;width:420px;max-height:86vh;overflow:auto}
+  .card input{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+              border-radius:6px;padding:7px;font-size:14px}
+  .erow{display:flex;align-items:center;gap:8px;margin:6px 0}
+  .erow input{width:80px} .small{padding:5px 9px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 선택 바 -->
+  <div class="panel">
+    <div class="row">
+      <label class="tag">위치(모듈)</label>
+      <select id="modSel"></select>
+      <button class="b-blue" onclick="connectModule()">연결</button>
+      <button class="b-gray" onclick="newLocation()">＋ 새 위치</button>
+      <span id="connDot" class="dot off">● 미연결</span>
+    </div>
+    <div class="row"><div class="hint">위치 선택하고 <b>연결</b>을 누르세요. (보드 시리얼은 연결 시 자동 인식)</div></div>
+    <div class="row">
+      <label class="tag">제품(테스트 대상)</label>
+      <select id="prodSel" onchange="loadProduct()"></select>
+      <button class="b-teal" onclick="editProduct(false)">새 제품</button>
+      <button class="b-amber" onclick="editProduct(true)">항목 편집</button>
+    </div>
+  </div>
+
+  <!-- 총 무게 + 채널 -->
+  <div class="panel">
+    <div class="total"><div class="num"><span id="total">—</span> <span class="cap">kg</span></div></div>
+    <div id="status">모듈을 선택해 연결하세요</div>
+    <div id="chans" style="margin-top:10px"></div>
+  </div>
+
+  <!-- 캘리브레이션 -->
+  <div class="panel">
+    <div class="row" style="justify-content:center;gap:10px">
+      <button class="b-blue"  onclick="tare()">① 영점</button>
+      <button class="b-teal"  onclick="span()">② 스팬</button>
+      <span style="color:var(--mut)">③ 코너:</span>
+      <button class="b-amber small" onclick="corner(0)">ch0</button>
+      <button class="b-amber small" onclick="corner(1)">ch1</button>
+      <button class="b-amber small" onclick="corner(2)">ch2</button>
+      <button class="b-amber small" onclick="corner(3)">ch3</button>
+    </div>
+    <div class="guide" style="margin-top:10px">
+      <b>① 영점</b> — 빈 상태를 0kg 기준으로(컨베이어 비우고).
+      <b>② 스팬</b> — 정중앙에 기준무게(≥30kg) 올리고 무게 입력.
+      <b>③ 코너</b> — 각 코너(ch0~3)에 분동 올린 뒤 해당 버튼. 모듈마다 따로 저장됩니다.
+    </div>
+  </div>
+
+  <!-- 테스트 항목 -->
+  <div class="panel">
+    <h3 id="tblTitle">테스트 항목</h3>
+    <table><thead><tr><th style="text-align:left">항목</th><th>측정</th><th>오차</th><th>판정</th><th></th></tr></thead>
+      <tbody id="tbody"></tbody></table>
+  </div>
+
+  <!-- 저장된 보정값 -->
+  <div class="panel">
+    <h3>저장된 보정값 <span id="calibFile" style="color:var(--mut);font-weight:400"></span></h3>
+    <div id="calibBox" class="guide">모듈을 연결하면 표시됩니다</div>
+  </div>
+
+  <!-- 저장 폴더 -->
+  <div class="panel">
+    <div class="row"><label class="tag">저장 폴더</label>
+      <span id="outDir" style="flex:1;color:var(--mut);word-break:break-all"></span>
+      <button class="b-gray small" onclick="setOutput()">변경</button>
+    </div>
+    <div class="row"><div class="hint">보정 <b>위치_시리얼.json</b> · 측정 <b>위치_시리얼.csv</b> · 이력 <b>calibration_history.csv</b> 가 여기에 저장됩니다.</div></div>
+  </div>
+</div>
+
+<!-- 제품 편집 모달 -->
+<div class="modal" id="modal">
+  <div class="card">
+    <h3 id="modalTitle">제품 편집</h3>
+    <div style="margin-bottom:8px">제품 이름</div>
+    <input id="pName" style="width:100%"><br>
+    <div style="margin:12px 0 6px">테스트 항목 (무게 kg · 위치)</div>
+    <div id="erows"></div>
+    <button class="b-gray small" style="margin-top:6px" onclick="addRow()">+ 행 추가</button>
+    <div style="margin-top:16px;text-align:right">
+      <button class="b-gray" onclick="closeModal()">취소</button>
+      <button class="b-blue" onclick="saveProduct()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let STATE = {positions:["정중앙","쏠림"], tol:0.5, ch_max:25};
+let CUR_PRODUCT = null;
+let EDIT_OLD = null;
+
+async function api(path, body){
+  const opt = body ? {method:"POST",headers:{"Content-Type":"application/json"},
+                      body:JSON.stringify(body)} : {};
+  const r = await fetch(path, opt);
+  return r.json();
+}
+function setStatus(msg, kind){
+  const s=document.getElementById("status");
+  s.textContent=msg; s.style.color = kind==="ok"?"var(--green)":kind==="err"?"var(--red)":"var(--mut)";
+}
+
+async function refreshState(){
+  const st = await api("/api/state"); STATE = Object.assign(STATE, st);
+  const ms=document.getElementById("modSel"), prev=ms.value;
+  ms.innerHTML = (st.locations||[]).map(n=>`<option>${n}</option>`).join("");
+  if(st.module) ms.value=st.module; else if(prev) ms.value=prev;
+  const od=document.getElementById("outDir"); if(od) od.textContent=st.output_dir||"";
+  const ps=document.getElementById("prodSel"), pprev=ps.value;
+  ps.innerHTML = st.products.map(p=>`<option>${p}</option>`).join("");
+  if(pprev && st.products.includes(pprev)) ps.value=pprev;
+  document.getElementById("connDot").className = "dot "+(st.connected?"on":"off");
+  document.getElementById("connDot").textContent = st.connected?`● 연결됨`:"● 미연결";
+  if(!CUR_PRODUCT) loadProduct();
+}
+
+// 채널 막대 초기화
+function initChans(){
+  document.getElementById("chans").innerHTML = [0,1,2,3].map(c=>`
+    <div class="chrow"><div class="name">ch${c}</div>
+      <div class="track"><div class="fill" id="fill${c}"></div></div>
+      <div class="kg" id="kg${c}">—</div><div class="vv" id="vv${c}"></div></div>`).join("");
+}
+
+async function poll(){
+  try{
+    const r = await api("/api/reading");
+    if(r.connected){
+      document.getElementById("total").textContent = r.total.toFixed(2);
+      for(let i=0;i<4;i++){
+        const frac=Math.max(0,Math.min(1, r.ch[i]/r.ch_max));
+        const f=document.getElementById("fill"+i);
+        f.style.width=(frac*100)+"%";
+        f.style.background = r.ch[i] > r.ch_max*0.8 ? "#D85A30" : "var(--purple)";
+        document.getElementById("kg"+i).textContent = r.ch[i].toFixed(2)+" kg";
+        document.getElementById("vv"+i).textContent = r.vv[i].toExponential(2);
+      }
+    } else {
+      document.getElementById("total").textContent="—";
+      if(r.error) setStatus(r.error,"err");
+    }
+  }catch(e){}
+  setTimeout(poll, 160);
+}
+
+// ── 모듈 ──
+function pickSerial(detected, allowBlank){
+  if(detected && detected.length===1){
+    if(confirm(`감지된 보드: ${detected[0][0]} (${detected[0][1]})\n이 시리얼을 쓸까요?`))
+      return detected[0][0];
+  } else if(detected && detected.length>1){
+    const list=detected.map(d=>`${d[0]} (${d[1]})`).join("\n");
+    const v=prompt("여러 보드 감지됨:\n"+list+"\n\n사용할 시리얼 입력:");
+    if(v) return parseInt(v);
+  }
+  const v=prompt("보드 시리얼 번호 입력"+(allowBlank?" (빈칸=미정)":"")+":");
+  if(v===null) return null;
+  if(v.trim()==="") return allowBlank?0:null;
+  return parseInt(v);
+}
+async function newLocation(){
+  const name=prompt("새 위치 이름 (예: mW2_3층):"); if(!name) return;
+  const r=await api("/api/location/new",{name});
+  if(r.ok){ await refreshState(); document.getElementById("modSel").value=r.name;
+            setStatus(`위치 '${r.name}' 추가됨`,"ok"); }
+  else setStatus(r.error,"err");
+}
+async function setOutput(){
+  const cur=document.getElementById("outDir").textContent;
+  const path=prompt("저장 폴더 경로 (절대경로):", cur); if(path===null) return;
+  const r=await api("/api/output",{path});
+  if(r.ok){ await refreshState(); setStatus("저장 폴더 변경: "+r.output_dir,"ok"); }
+  else setStatus(r.error,"err");
+}
+async function connectModule(){
+  const name=document.getElementById("modSel").value; if(!name){setStatus("모듈을 선택하세요","err");return;}
+  setStatus(`'${name}' 연결 중…`);
+  let r=await api("/api/connect",{name});
+  if(r.needs_serial){
+    const serial=pickSerial(r.detected,false); if(!serial){setStatus("연결 취소","err");return;}
+    r=await api("/api/connect",{name,serial});
+  }
+  if(r.ok){ await refreshState(); refreshCalib(); setStatus(`모듈 '${r.module}' (S/N ${r.serial}) 연결됨`,"ok"); }
+  else setStatus(r.error,"err");
+}
+
+// ── 저장된 보정값 표시 ──
+async function refreshCalib(){
+  const c=await api("/api/calib"); const box=document.getElementById("calibBox");
+  const fl=document.getElementById("calibFile");
+  if(!c.connected){ box.innerHTML="모듈을 연결하면 표시됩니다"; if(fl) fl.textContent=""; return; }
+  if(fl) fl.textContent="— "+(c.file||"");
+  box.innerHTML =
+    `<div style="margin-bottom:6px">모듈 <b>${c.module}</b> · 시리얼 <b>${c.serial}</b></div>`
+    +`<table><thead><tr><th></th><th>ch0</th><th>ch1</th><th>ch2</th><th>ch3</th></tr></thead><tbody>`
+    +`<tr><td class="name">영점(zero, V/V)</td>${c.zero.map(z=>`<td>${Number(z).toExponential(3)}</td>`).join("")}</tr>`
+    +`<tr><td class="name">배율(scale)</td>${c.scale.map(s=>`<td>${Number(s).toPrecision(4)}</td>`).join("")}</tr>`
+    +`</tbody></table>`;
+}
+
+// ── 보정 ──
+async function tare(){
+  if(!confirm("컨베이어 위를 모두 비웠나요? 확인을 누르면 측정합니다.")) return;
+  setStatus("영점 측정 중…");
+  const r=await api("/api/tare",{}); setStatus(r.ok?r.msg:r.error, r.ok?"ok":"err"); refreshCalib();
+}
+async function span(){
+  const kg=prompt("정중앙에 올린 기준무게(kg):"); if(kg===null) return;
+  setStatus("스팬 측정 중…");
+  const r=await api("/api/span",{kg:parseFloat(kg)}); setStatus(r.ok?r.msg:r.error, r.ok?"ok":"err"); refreshCalib();
+}
+async function corner(ch){
+  const kg=prompt(`ch${ch} 코너에 올린 기준무게(kg):`); if(kg===null) return;
+  setStatus(`ch${ch} 코너 측정 중…`);
+  const r=await api("/api/corner",{kg:parseFloat(kg),channel:ch}); setStatus(r.ok?r.msg:r.error, r.ok?"ok":"err"); refreshCalib();
+}
+
+// ── 제품/항목 ──
+async function loadProduct(){
+  const name=document.getElementById("prodSel").value;
+  const tb=document.getElementById("tbody");
+  if(!name){ CUR_PRODUCT=null; tb.innerHTML=`<tr><td colspan="5" style="color:var(--mut)">제품을 선택하거나 [새 제품]을 만드세요</td></tr>`;
+             document.getElementById("tblTitle").textContent="테스트 항목"; return; }
+  CUR_PRODUCT=await api("/api/product?name="+encodeURIComponent(name));
+  document.getElementById("tblTitle").textContent=`테스트 항목 — ${CUR_PRODUCT.name} · 올리고 [기록] (합격 ±${STATE.tol}kg)`;
+  tb.innerHTML = CUR_PRODUCT.items.map((it,i)=>`
+    <tr><td class="name">${(+it.nominal)}kg — ${it.position}</td>
+        <td id="m${i}">—</td><td id="e${i}">—</td><td id="v${i}">—</td>
+        <td><button class="b-purple small" onclick="record(${i})">기록</button></td></tr>`).join("");
+}
+async function record(i){
+  const name=document.getElementById("prodSel").value;
+  setStatus("측정 기록 중…");
+  const r=await api("/api/record",{product:name,index:i});
+  if(!r.ok){ setStatus(r.error,"err"); return; }
+  document.getElementById("m"+i).textContent=r.total.toFixed(2)+"kg";
+  const e=document.getElementById("e"+i); e.textContent=(r.err>=0?"+":"")+r.err.toFixed(2);
+  e.className = Math.abs(r.err)<=STATE.tol?"pass":"fail";
+  const v=document.getElementById("v"+i); v.textContent=r.verdict; v.className=r.verdict==="PASS"?"pass":"fail";
+  setStatus(`기록: ${(+CUR_PRODUCT.items[i].nominal)}kg ${CUR_PRODUCT.items[i].position} → ${r.total.toFixed(2)}kg (${r.verdict})`
+            +(r.over?"  ⚠ 셀 정격 초과!":""), (r.verdict==="FAIL"||r.over)?"err":"ok");
+}
+
+// 제품 편집 모달
+function addRow(nominal="",position="정중앙"){
+  const div=document.createElement("div"); div.className="erow";
+  const opts=STATE.positions.map(p=>`<option ${p===position?"selected":""}>${p}</option>`).join("");
+  div.innerHTML=`<input type="number" step="0.1" value="${nominal}" placeholder="무게"> kg
+    <select>${opts}</select>
+    <button class="b-red small" onclick="this.parentNode.remove()">삭제</button>`;
+  document.getElementById("erows").appendChild(div);
+}
+function editProduct(isEdit){
+  document.getElementById("erows").innerHTML="";
+  if(isEdit && CUR_PRODUCT){
+    EDIT_OLD=CUR_PRODUCT.name; document.getElementById("pName").value=CUR_PRODUCT.name;
+    document.getElementById("modalTitle").textContent="제품 편집";
+    CUR_PRODUCT.items.forEach(it=>addRow(+it.nominal,it.position));
+  } else {
+    EDIT_OLD=null; document.getElementById("pName").value="";
+    document.getElementById("modalTitle").textContent="새 제품"; addRow();
+  }
+  document.getElementById("modal").classList.add("show");
+}
+function closeModal(){ document.getElementById("modal").classList.remove("show"); }
+async function saveProduct(){
+  const name=document.getElementById("pName").value.trim();
+  if(!name){ alert("제품 이름을 입력하세요"); return; }
+  const items=[...document.querySelectorAll("#erows .erow")].map(r=>{
+    const v=r.querySelector("input").value.trim();
+    return v===""?null:{nominal:parseFloat(v), position:r.querySelector("select").value};
+  }).filter(Boolean);
+  if(!items.length){ alert("항목을 1개 이상 추가하세요"); return; }
+  const r=await api("/api/product/save",{name,items,oldName:EDIT_OLD});
+  if(!r.ok){ alert(r.error); return; }
+  closeModal(); await refreshState();
+  document.getElementById("prodSel").value=r.name; loadProduct();
+  setStatus(`제품 '${r.name}' 저장됨`,"ok");
+}
+
+// 시작
+initChans(); refreshState(); poll();
+</script>
+</body>
+</html>

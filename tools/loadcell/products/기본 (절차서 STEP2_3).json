@@ -1,0 +1,45 @@
+{
+  "name": "기본 (절차서 STEP2/3)",
+  "items": [
+    {
+      "nominal": 5.0,
+      "position": "정중앙"
+    },
+    {
+      "nominal": 5.0,
+      "position": "쏠림"
+    },
+    {
+      "nominal": 10.0,
+      "position": "정중앙"
+    },
+    {
+      "nominal": 10.0,
+      "position": "쏠림"
+    },
+    {
+      "nominal": 25.0,
+      "position": "정중앙"
+    },
+    {
+      "nominal": 25.0,
+      "position": "쏠림"
+    },
+    {
+      "nominal": 30.0,
+      "position": "정중앙"
+    },
+    {
+      "nominal": 30.0,
+      "position": "쏠림"
+    },
+    {
+      "nominal": 60.0,
+      "position": "정중앙"
+    },
+    {
+      "nominal": 60.0,
+      "position": "쏠림"
+    }
+  ]
+}
