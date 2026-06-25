@@ -13,6 +13,7 @@ import {
   SOFT_CAP_LINEAR,
 } from "../config.js";
 import { driver } from "../driver.js";
+import { planGate } from "../plangate.js";
 import {
   humanizeError,
   ok,
@@ -137,13 +138,16 @@ export function registerControl(server: McpServer) {
         omega: z.number().default(0).describe("회전 rad/s (+반시계)"),
         duration_s: z.number().default(2).describe(`초 (최대 ${MAX_DURATION_S})`),
         confirm: z.boolean().default(false),
+        token: z.string().default("").describe("계획 단계에서 받은 승인 토큰(실행 시 필수)"),
       },
     },
-    async ({ vx, vy, omega, duration_s, confirm }) => {
+    async ({ vx, vy, omega, duration_s, confirm, token }) => {
       if (latch.engaged) return ok(latchBlock);
       if (driver.active) return ok("이미 연속 주행 중입니다(start_drive). 먼저 'stop' 후 다시.");
       const dur = Math.min(Math.max(duration_s, 0), MAX_DURATION_S);
+      const key = `drive|${vx}|${vy}|${omega}|${dur}`;
       if (!confirm) {
+        const tk = planGate.issue(key);
         return ok(
           [
             "🚗 실행 예정 동작:",
@@ -151,12 +155,14 @@ export function registerControl(server: McpServer) {
             "  (10Hz 하트비트 → 종료 시 자동 정지, 컨트롤러 0.5s 타임아웃)",
             tooFast(vx, vy, omega) ? "  ⚠ 권장 속도(0.3 m/s / 0.5 rad/s) 초과 — 안전거리·정지버튼 재확인" : "",
             "⚠ 정지 버튼(stop.html)이 열려 있는지 확인하세요.",
-            "승인하시면 같은 값에 confirm=true로 실행합니다.",
+            `**사용자 승인을 받은 뒤** confirm=true, token="${tk}" 로 실행 (이 값 그대로). 파라미터 바꾸면 토큰 무효 → 다시 계획.`,
           ]
             .filter(Boolean)
             .join("\n"),
         );
       }
+      const gateErr = planGate.check(key, token);
+      if (gateErr) return ok(`⛔ 실행 거부(${gateErr}). confirm 없이 다시 호출해 계획을 띄우고 사용자 승인을 받으세요.`);
       // 사전 점검: 컨트롤러가 active 가 아니면 주행 불가(발행해도 무효 + 혼란 방지)
       if (!(await swerveActive()))
         return ok(
@@ -193,6 +199,101 @@ export function registerControl(server: McpServer) {
     },
   );
 
+  // ── 왕복 반복 주행 (연속, 한 호출로 자율 실행, 승인 필수) ──
+  server.registerTool(
+    "drive_cycles",
+    {
+      title: "왕복 반복 주행(연속, 승인 필수)",
+      description:
+        "한 방향으로 segment_s초 → 반대로 segment_s초를 1사이클로, cycles회 끊김 없이 연속 반복(왕복). 한 번의 호출로 MCP가 자율 실행해 사이클 사이 텀이 없음. confirm 없으면 계획만.",
+      inputSchema: {
+        vx: z.number().default(0.1).describe("첫 구간 전후 속도 m/s(부호=첫 방향). 반대구간은 자동 반전"),
+        vy: z.number().default(0).describe("횡이동 m/s(왕복 게걸음용)"),
+        omega: z.number().default(0).describe("회전 rad/s(왕복 회전용)"),
+        segment_s: z.number().default(5).describe("각 방향 지속 초"),
+        cycles: z.number().default(5).describe("왕복 횟수(최대 50)"),
+        settle_s: z.number().default(0).describe("방향 전환 사이 정지 초(0=완전 연속)"),
+        confirm: z.boolean().default(false),
+        token: z.string().default("").describe("계획 단계에서 받은 승인 토큰(실행 시 필수)"),
+      },
+    },
+    async ({ vx, vy, omega, segment_s, cycles, settle_s, confirm, token }) => {
+      if (latch.engaged) return ok(latchBlock);
+      const cyc = Math.min(Math.max(Math.round(cycles), 1), 50);
+      const seg = Math.min(Math.max(segment_s, 0.5), 30);
+      const settle = Math.min(Math.max(settle_s, 0), 5);
+      if (vx === 0 && vy === 0 && omega === 0)
+        return ok("속도가 모두 0입니다. 왕복할 방향을 지정하세요.");
+      const fast = tooFast(vx, vy, omega);
+      const key = `drive_cycles|${vx}|${vy}|${omega}|${seg}|${cyc}|${settle}`;
+      if (!confirm) {
+        const totalS = cyc * 2 * seg + (settle > 0 ? cyc * 2 * settle : 0);
+        const tk = planGate.issue(key);
+        return ok(
+          [
+            "🔁 왕복 반복 예정(연속):",
+            `  A: ${moveDesc(vx, vy, omega)} ${seg}초 → B: 반대방향 ${seg}초 = 1사이클`,
+            `  × ${cyc}회, 방향전환 정지 ${settle}초${settle === 0 ? "(완전 연속)" : ""}`,
+            `  총 약 ${Math.round(totalS)}초, 한 호출로 자율 실행(사이 텀 없음)`,
+            fast ? "  ⚠ 권장 속도 초과 — 안전거리·정지버튼 재확인" : "",
+            "⚠ 앞·뒤 공간 + 정지 버튼(stop.html) 확인. 멈추려면 stop/emergency_stop.",
+            `**사용자 승인 후** confirm=true, token="${tk}" 로 실행. 파라미터 바꾸면 토큰 무효 → 다시 계획.`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        );
+      }
+      const gateErr = planGate.check(key, token);
+      if (gateErr) return ok(`⛔ 실행 거부(${gateErr}). confirm 없이 다시 호출해 계획을 띄우고 사용자 승인을 받으세요.`);
+      if (!(await swerveActive()))
+        return ok("swerve_controller가 active가 아닙니다. 먼저 활성화하세요.");
+      let beats = 0;
+      let done = 0;
+      let aborted: string | null = null;
+      const runLeg = async (lvx: number, lvy: number, lw: number): Promise<boolean> => {
+        const end = Date.now() + seg * 1000;
+        while (Date.now() < end) {
+          if (latch.engaged) {
+            aborted = "정지 래치";
+            return false;
+          }
+          if (beats > 0 && beats % SAFETY_CHECK_EVERY === 0 && !(await swerveActive())) {
+            aborted = "컨트롤러 비활성 감지";
+            return false;
+          }
+          await publishCmdVel(twist(lvx, lvy, lw));
+          beats++;
+          await sleep(HEARTBEAT_MS);
+        }
+        return true;
+      };
+      try {
+        for (let c = 0; c < cyc; c++) {
+          if (!(await runLeg(vx, vy, omega))) break;
+          if (settle > 0) {
+            await publishCmdVel(zeroTwist());
+            await sleep(settle * 1000);
+          }
+          if (!(await runLeg(-vx, -vy, -omega))) break;
+          done = c + 1;
+          if (settle > 0 && c < cyc - 1) {
+            await publishCmdVel(zeroTwist());
+            await sleep(settle * 1000);
+          }
+        }
+        await publishCmdVel(zeroTwist());
+        return ok(
+          aborted
+            ? `⛔ 왕복 ${done}/${cyc}회에서 중단(${aborted}). 정지함.`
+            : `🔁 왕복 ${done}/${cyc}회 연속 완료. 자동 정지(0) 발행함.`,
+        );
+      } catch (e) {
+        await publishCmdVel(zeroTwist()).catch(() => {});
+        return ok(`왕복 중 오류 → 정지 시도함: ${humanizeError(e)}`);
+      }
+    },
+  );
+
   // ── 연속 주행(백그라운드, 승인 필수) ──
   server.registerTool(
     "start_drive",
@@ -206,13 +307,16 @@ export function registerControl(server: McpServer) {
         vy: z.number().default(0).describe("좌우(게걸음) m/s (+좌)"),
         omega: z.number().default(0).describe("회전 rad/s (+반시계)"),
         confirm: z.boolean().default(false),
+        token: z.string().default("").describe("계획 단계에서 받은 승인 토큰(실행 시 필수)"),
       },
     },
-    async ({ vx, vy, omega, confirm }) => {
+    async ({ vx, vy, omega, confirm, token }) => {
       if (latch.engaged) return ok(latchBlock);
       if (vx === 0 && vy === 0 && omega === 0)
         return ok("속도가 모두 0입니다. 움직일 방향을 지정하세요(또는 stop).");
+      const key = `start_drive|${vx}|${vy}|${omega}`;
       if (!confirm) {
+        const tk = planGate.issue(key);
         return ok(
           [
             "🚗 연속 주행 예정:",
@@ -220,12 +324,14 @@ export function registerControl(server: McpServer) {
             "  (백그라운드 10Hz 발행. 0.5s마다 컨트롤러 확인, 꺼지면 자동중단)",
             tooFast(vx, vy, omega) ? "  ⚠ 권장 속도 초과 — 안전거리·정지버튼 재확인" : "",
             "⚠ 정지 버튼(stop.html)이 열려 있는지 확인하세요. 멈추려면 'stop'.",
-            "승인하시면 confirm=true로 시작합니다.",
+            `**사용자 승인 후** confirm=true, token="${tk}" 로 시작. 파라미터 바꾸면 토큰 무효 → 다시 계획.`,
           ]
             .filter(Boolean)
             .join("\n"),
         );
       }
+      const gateErr = planGate.check(key, token);
+      if (gateErr) return ok(`⛔ 실행 거부(${gateErr}). confirm 없이 다시 호출해 계획을 띄우고 사용자 승인을 받으세요.`);
       if (!(await swerveActive()))
         return ok(
           "swerve_controller가 active가 아니라 주행할 수 없습니다. 먼저 활성화하세요(switch_controller activate=['swerve_controller']).",
