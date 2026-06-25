@@ -26,6 +26,8 @@ import { registerView } from "./tools/view.js";
 import { registerUsbHub } from "./tools/usbhub.js";
 import { registerTests } from "./tools/tests.js";
 import { registerLoadcell } from "./tools/loadcell.js";
+import { registerLogs } from "./tools/logs.js";
+import { logEvent, signalOnPush } from "./logstore.js";
 
 const INSTRUCTIONS = [
   "당신은 하드웨어 엔지니어(비개발자)가 로봇을 테스트하도록 돕는다.",
@@ -40,7 +42,35 @@ const INSTRUCTIONS = [
 
 const server = new McpServer({ name: "w_robot", version: "0.2.0" }, { instructions: INSTRUCTIONS });
 
+// 모든 도구 실행을 세션 이벤트 로그에 자동 기록(감사/복기용). 고빈도 조회 도구는 제외.
+const NOLOG = new Set([
+  "get_latest", "get_recent", "watch", "list_watched", "health",
+  "signal_log_status", "tail_log", "list_logs", "view_events", "analyze_log",
+]);
+const summarizeArgs = (a: any) => {
+  try {
+    const s = JSON.stringify(a);
+    return s.length > 200 ? s.slice(0, 200) + "…" : s;
+  } catch {
+    return undefined;
+  }
+};
+const _registerTool: any = server.registerTool.bind(server);
+(server as any).registerTool = (name: string, config: any, handler: any) =>
+  _registerTool(name, config, async (args: any, extra: any) => {
+    const start = Date.now();
+    try {
+      const res = await handler(args, extra);
+      if (!NOLOG.has(name)) logEvent("tool", { name, args: summarizeArgs(args), ms: Date.now() - start });
+      return res;
+    } catch (e) {
+      logEvent("tool_error", { name, args: summarizeArgs(args), error: e instanceof Error ? e.message : String(e) });
+      throw e;
+    }
+  });
+
 const hub = new WsHub();
+hub.onPush = signalOnPush; // 신호 로거 연결
 hub.start();
 
 registerObserve(server);
@@ -56,10 +86,12 @@ registerView(server);
 registerUsbHub(server, hub);
 registerTests(server);
 registerLoadcell(server);
+registerLogs(server, hub);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
 console.error(`[w_robot_mcp] started. backend=${tb.base}`);
+logEvent("mcp_start", { backend: tb.base });
 
 // 시작 시 자동 오픈 (headless면 조용히 무시). 각각 env로 끄기 가능.
 if (process.env.MCP_NO_STOP_PAGE !== "1") {

@@ -49,3 +49,8 @@ TESTBENCH_BASE=http://localhost:8099 npm start
 | `TESTBENCH_BASE` | `http://192.168.34.202:8080` | testbench 백엔드 주소 |
 | `LOADCELL_BASE` | `http://localhost:8765` | 로드셀 서버(별도 설치, 선택) |
 | `MCP_ALLOW_DESTRUCTIVE` | `0` | 1이면 파괴적 동작(시작플랜/kill) 허용 |
+| `W_ROBOT_LOG_DIR` | `~/w_robot_logs` | 신호 로거·세션 이벤트 로그 저장 폴더 |
+
+## 로그 보기
+- **범용 신호 로거**: `start_signal_log(['/can_bms/status'])` → 흔들기/주행 등 길게 기록(링버퍼 30s 제한 없음) → `stop_signal_log` → `analyze_log(field='alive')`로 전이/끊김 집계. `tail_log`로 raw 확인.
+- **세션 이벤트 로그**: 실행한 도구(주행/정지/보정/에러 등)가 자동 기록됨 → `view_events`로 복기.

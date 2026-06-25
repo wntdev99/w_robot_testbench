@@ -17,6 +17,8 @@ export class WsHub {
   private latestDiag: any = null;
   private connected = false;
   private backoff = 1000;
+  /** push 훅 — 신호 로거가 활성일 때 매 샘플을 파일로 흘려보낸다(logstore.signalOnPush). */
+  onPush: ((topic: string, v: any) => void) | null = null;
 
   constructor() {
     // http(s)://host:port → ws(s)://host:port/ws
@@ -90,6 +92,13 @@ export class WsHub {
     buf.push({ t: now, v });
     const cutoff = now - RING_SECONDS * 1000;
     while (buf.length && buf[0].t < cutoff) buf.shift();
+    if (this.onPush) {
+      try {
+        this.onPush(topic, v);
+      } catch {
+        /* 로깅 실패는 버퍼링을 막지 않는다 */
+      }
+    }
   }
 
   /** 동적 구독 추가(타입 미상이면 백엔드에 조회). */
