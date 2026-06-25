@@ -48,7 +48,7 @@ DEFAULT_LOCS  = ["mW2_1층", "mW2_2층", "w-station"]
 LOCK   = threading.Lock()
 CONFIG = {"output_dir": HERE, "locations": list(DEFAULT_LOCS)}
 DEV    = {"chans": None, "connected": False, "module": None}  # module={name, serial}
-CALIB  = {"zero": [0.0]*4, "scale": [1.0]*4}
+CALIB  = {"zero": [0.0]*4, "scale": [1.0]*4, "ecc": None}
 DISP   = [0.0]*4
 
 
@@ -132,9 +132,18 @@ def save_calib_file(step):
     m = DEV["module"]
     if not m:
         return
-    data = {"module": m["name"], "serial": m["serial"],
-            "zero": list(CALIB["zero"]), "scale": list(CALIB["scale"]),
-            "updated": now_str()}
+    # 토픽 등에서 바로 쓸 수 있게 위치·시리얼·영점·풀이(배율)+풀이식+편심상세를 한 json에 담는다.
+    data = {
+        "module": m["name"],            # 위치
+        "serial": m["serial"],          # 시리얼
+        "channels": 4,
+        "zero": list(CALIB["zero"]),    # 영점 (V/V)
+        "scale": list(CALIB["scale"]),  # 풀이 = 셀별 배율 (kg per (raw-zero))
+        "formula": "weight_i = (raw_i - zero_i) * scale_i ; total = sum(weight_i)",
+        "ecc": CALIB.get("ecc"),        # 편심보정 상세(5점 샘플·잔차·최대오차) — 없으면 null
+        "step": step,
+        "updated": now_str(),
+    }
     with open(calib_path(m["name"], m["serial"]), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     # 이력 누적
@@ -252,8 +261,9 @@ def api_connect(body):
         with open(p, encoding="utf-8") as f:
             d = json.load(f)
         CALIB["zero"] = list(d.get("zero", [0.0]*4)); CALIB["scale"] = list(d.get("scale", [1.0]*4))
+        CALIB["ecc"] = d.get("ecc")
     else:
-        CALIB["zero"] = [0.0]*4; CALIB["scale"] = [1.0]*4
+        CALIB["zero"] = [0.0]*4; CALIB["scale"] = [1.0]*4; CALIB["ecc"] = None
     for i in range(4): DISP[i] = 0.0
     return {"ok": True, "module": name, "serial": int(serial),
             "loaded": os.path.exists(p)}
@@ -355,12 +365,112 @@ def api_record(body):
             "file": os.path.basename(path)}
 
 
+# ───── 편심(코너) 보정 — 같은 분동을 중앙/각 코너에 두고 측정 → 위치 무관 합계 ─────
+# 원리: 영점 후 각 셀 신호 d_i ∝ 셀 하중, 힘평형상 Σ(셀하중)=W(분동) 가 모든 위치에서 성립.
+#       → W = Σ s_i·d_i 인 셀별 스케일 s_i(4개)를 위치 ≥4곳(중앙+코너4)에서 최소제곱으로 푼다.
+ECC = []   # [{label, kg, d:[4]}]
+
+def _lstsq_subset(rows, b, cols):
+    """선택한 채널(cols)만으로 일반 최소제곱(정규방정식+가우스소거). 특이하면 None."""
+    k = len(cols)
+    M = [[sum(rows[r][ci] * rows[r][cj] for r in range(len(rows))) for cj in cols] for ci in cols]
+    v = [sum(rows[r][ci] * b[r] for r in range(len(rows))) for ci in cols]
+    A = [M[i][:] + [v[i]] for i in range(k)]
+    for c in range(k):
+        p = max(range(c, k), key=lambda r: abs(A[r][c]))
+        A[c], A[p] = A[p], A[c]
+        if abs(A[c][c]) < 1e-12:
+            return None
+        piv = A[c][c]
+        A[c] = [x / piv for x in A[c]]
+        for r in range(k):
+            if r != c:
+                f = A[r][c]
+                A[r] = [A[r][t] - f * A[c][t] for t in range(k + 1)]
+    return [A[i][k] for i in range(k)]
+
+def _sse(rows, b, scale):
+    return sum((sum(scale[i] * rows[r][i] for i in range(4)) - b[r]) ** 2 for r in range(len(rows)))
+
+def _solve_scales(rows, b):
+    """비음수 최소제곱(NNLS). rows: m×4(위치별 채널 delta), b: m(기준무게 W) → scale[4] (모두 ≥0).
+    물리상 셀 스케일은 음수일 수 없음. 음수로 가려는(상쇄용) 채널은 0으로 솎아낸다.
+    4채널이라 활성집합(부분집합)을 전수 탐색 → 전역 최적. 음수 상쇄로 오차를 속이지 못함."""
+    import itertools
+    if not rows:
+        raise ValueError("표본이 없습니다.")
+    best = None  # (sse, scale[4])
+    for k in range(1, 5):
+        for sub in itertools.combinations(range(4), k):
+            sol = _lstsq_subset(rows, b, list(sub))
+            if sol is None or any(x < -1e-9 for x in sol):
+                continue
+            scale = [0.0] * 4
+            for ci, val in zip(sub, sol):
+                scale[ci] = max(val, 0.0)
+            e = _sse(rows, b, scale)
+            if best is None or e < best[0]:
+                best = (e, scale)
+    if best is None:
+        raise ValueError("유효한 비음수 해가 없습니다. 위치를 더 분명히 옮겨 다시 캡처하세요.")
+    return best[1]
+
+def api_ecc_reset(body):
+    ECC.clear()
+    return {"ok": True, "msg": "편심 샘플 초기화", "count": 0}
+
+def api_ecc_capture(body):
+    if not _require_conn(): return {"ok": False, "error": "먼저 연결하세요."}
+    try: kg = float(body.get("kg"))
+    except (TypeError, ValueError): return {"ok": False, "error": "기준무게(kg)를 입력하세요."}
+    label = str(body.get("label") or f"위치{len(ECC) + 1}")
+    raw = read_avg()
+    d = [raw[i] - CALIB["zero"][i] for i in range(4)]
+    ECC.append({"label": label, "kg": kg, "d": d})
+    # 표시용: 신호(V/V)는 매우 작아 과학표기로, + 추정 셀별 하중(분동무게×신호비율) — 과부하 감시용
+    sd = sum(d)
+    load_est = [round(kg * d[i] / sd, 1) if abs(sd) > 1e-12 else 0.0 for i in range(4)]
+    return {"ok": True, "msg": f"'{label}' 캡처됨", "count": len(ECC),
+            "d": [f"{x:.2e}" for x in d], "load_est_kg": load_est}
+
+def api_ecc_solve(body):
+    if len(ECC) < 4:
+        return {"ok": False, "error": f"위치 4곳 이상 필요(현재 {len(ECC)}). 중앙+코너4 권장."}
+    rows = [s["d"] for s in ECC]; b = [s["kg"] for s in ECC]
+    try: scale = _solve_scales(rows, b)
+    except ValueError as e: return {"ok": False, "error": str(e)}
+    CALIB["scale"] = scale
+    # 입력(d)과 출력(meas/err)을 한 항목에 합쳐 저장 — samples 하나로 단순화
+    samples = []
+    for s in ECC:
+        meas = round(sum(scale[i] * s["d"][i] for i in range(4)), 3)
+        samples.append({"label": s["label"], "kg": s["kg"], "d": s["d"],
+                        "meas": meas, "err": round(meas - s["kg"], 3)})
+    max_err = max(abs(s["err"]) for s in samples)
+    # 풀이 상세를 보정 json에 함께 저장(토픽/추적용)
+    CALIB["ecc"] = {
+        "method": f"nnls_{len(ECC)}pt",
+        "weight_kg": ECC[0]["kg"] if ECC else None,
+        "samples": samples,
+        "max_err": round(max_err, 4),
+        "solved_at": now_str(),
+    }
+    save_calib_file("편심보정")
+    return {"ok": True, "msg": "편심보정 완료(위치 무관 스케일 적용)",
+            "scale": [round(x, 6) for x in scale], "samples": samples, "max_err": round(max_err, 3)}
+
+def api_ecc_status(body=None):
+    return {"count": len(ECC),
+            "samples": [{"label": s["label"], "kg": s["kg"], "d": [round(x, 1) for x in s["d"]]} for s in ECC]}
+
+
 POST_ROUTES = {
     "/api/connect": api_connect, "/api/disconnect": api_disconnect,
     "/api/location/new": api_location_new, "/api/output": api_set_output,
     "/api/detect": api_detect, "/api/product/save": api_product_save,
     "/api/tare": api_tare, "/api/span": api_span, "/api/corner": api_corner,
     "/api/record": api_record,
+    "/api/ecc/reset": api_ecc_reset, "/api/ecc/capture": api_ecc_capture, "/api/ecc/solve": api_ecc_solve,
 }
 
 
@@ -389,6 +499,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/state":   return self._send(api_state())
             if u.path == "/api/reading": return self._send(api_reading())
             if u.path == "/api/calib":   return self._send(api_calib())
+            if u.path == "/api/ecc/status": return self._send(api_ecc_status())
             if u.path == "/api/product":
                 q = parse_qs(u.query)
                 return self._send(api_product_get(q.get("name", [""])[0]))

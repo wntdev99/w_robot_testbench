@@ -14,11 +14,32 @@ export function osOpen(target: string) {
 export const ok = (text: string) => ({ content: [{ type: "text" as const, text }] });
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** 백엔드 호스트(서버 IP) — SSH 안내용. */
+function backendHost(): string {
+  try {
+    return new URL(tb.base).hostname;
+  } catch {
+    return "192.168.34.202";
+  }
+}
+
+/** 백엔드 수동 기동 안내문(연결 실패 시 그대로 보여줌). */
+export function backendStartGuide(): string {
+  const host = backendHost();
+  return [
+    "백엔드(테스트벤치 서버)가 꺼져 있을 수 있어요. 새 터미널에서 켜세요:",
+    `  1) ssh james@${host}        (비밀번호 입력)`,
+    "  2) cd ~/ros2_ws/src/w_robot_testbench",
+    "  3) ./scripts/run_server.sh",
+    `  → "0.0.0.0:8080" 뜨면 성공. 그 터미널은 그대로 두세요(끄면 서버도 꺼짐).`,
+  ].join("\n");
+}
+
 /** ApiError를 비개발자용 사람 말 + 다음 행동으로 (설계 §11.4). */
 export function humanizeError(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.status === 0)
-      return `로봇 서버에 연결이 안 돼요. 로봇이 켜져 있는지, 같은 Wi-Fi인지 확인해 주세요. (${tb.base})`;
+      return `로봇 서버에 연결이 안 돼요 (${tb.base}). 같은 Wi-Fi인지 확인하세요.\n${backendStartGuide()}`;
     if (e.status === 404)
       return "아직 그 기능(토픽/서비스)이 안 켜진 것 같아요. 필요한 런치를 먼저 켜 보세요.";
     if (e.status === 503)

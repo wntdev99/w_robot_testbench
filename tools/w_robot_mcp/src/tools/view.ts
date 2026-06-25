@@ -5,11 +5,15 @@
  * MCP가 사용자 PC에서 로컬 실행되므로 OS 기본 브라우저를 직접 띄운다.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { tb } from "../client.js";
 import { ok, humanizeError, osOpen } from "../util.js";
 
 const snapUrl = (name: string) => `${tb.base}/workspace?snapshot=${encodeURIComponent(name)}`;
+// view.js 는 server/tools/ 에 빌드됨 → 패키지 루트는 ../../
+const STOP_HTML = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "stop.html");
 
 export function registerView(server: McpServer) {
   server.registerTool(
@@ -65,6 +69,23 @@ export function registerView(server: McpServer) {
         );
       } catch (e) {
         return ok(`브라우저 열기 실패: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    },
+  );
+
+  server.registerTool(
+    "open_stop_button",
+    {
+      title: "정지 버튼 열기",
+      description: "비상정지 버튼 페이지(stop.html)를 브라우저로 연다. 시작 시 자동으로 열리지만, 닫혔을 때 다시 열 때 사용.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        osOpen(`file://${STOP_HTML}?base=${encodeURIComponent(tb.base)}`);
+        return ok("🛑 정지 버튼 페이지를 열었습니다. 주행 중 문제 시 클릭/Space/Esc → 비상정지.");
+      } catch (e) {
+        return ok(`정지 버튼 페이지 열기 실패: ${e instanceof Error ? e.message : String(e)}`);
       }
     },
   );

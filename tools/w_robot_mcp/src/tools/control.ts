@@ -562,26 +562,44 @@ export function registerControl(server: McpServer) {
     },
     async () => {
       const lines: string[] = ["사전 점검:"];
+      let backendOk = true;
+      let robotUp = false; // zenoh + 컨트롤러(201)
       try {
         const s = await tb.get<any>("/api/system/status");
-        lines.push(`- zenoh: ${s.zenoh?.running ? "✅" : "⚠ 꺼짐"}`);
-        lines.push(
-          `- 컨트롤러(201): ${s.controller?.reachable ? "✅ 연결" : "⚠ 연결 안 됨 → 로봇 기동 필요"}`,
-        );
+        const zen = !!s.zenoh?.running;
+        const ctrl = !!s.controller?.reachable;
+        robotUp = zen && ctrl;
+        lines.push(`- zenoh: ${zen ? "✅" : "⚠ 꺼짐"}`);
+        lines.push(`- 컨트롤러(201): ${ctrl ? "✅ 연결" : "⚠ 연결 안 됨"}`);
       } catch (e) {
-        lines.push(`- 서버: ⚠ ${humanizeError(e)}`);
+        backendOk = false;
+        lines.push(`- 서버: ⚠ 연결 실패\n${humanizeError(e)}`);
       }
-      try {
-        const cs = await tb.get<Array<{ name: string; state: string }>>("/api/controllers");
-        const sw = cs.find((c) => c.name === "swerve_controller");
-        lines.push(`- swerve_controller: ${sw?.state === "active" ? "✅ active" : `⚠ ${sw?.state ?? "없음"} → 주행 전 활성화 필요`}`);
-      } catch {
-        lines.push("- 컨트롤러: ⚠ 조회 실패");
+      let swActive = false;
+      if (backendOk) {
+        try {
+          const cs = await tb.get<Array<{ name: string; state: string }>>("/api/controllers");
+          const sw = cs.find((c) => c.name === "swerve_controller");
+          swActive = sw?.state === "active";
+          lines.push(`- swerve_controller: ${swActive ? "✅ active" : `⚠ ${sw?.state ?? "없음"}`}`);
+        } catch {
+          lines.push("- 컨트롤러: ⚠ 조회 실패(로봇 기동 전일 수 있음)");
+        }
       }
-      lines.push(
-        latch.engaged ? "- 정지 래치: ⛔ ENGAGED → reset_estop 필요" : "- 정지 래치: ✅ 해제",
-      );
-      lines.push("- ⚠ 주행 테스트 전 정지 버튼(stop.html)을 열어 두세요.");
+      lines.push(latch.engaged ? "- 정지 래치: ⛔ ENGAGED → reset_estop 필요" : "- 정지 래치: ✅ 해제");
+
+      // 막힌 곳별 다음 행동 제안
+      if (!backendOk) {
+        lines.push("\n➡ 먼저 백엔드를 켜야 합니다(위 안내 참고). 켠 뒤 다시 'preflight'.");
+      } else if (!robotUp) {
+        lines.push(
+          "\n➡ 로봇(zenoh·컨트롤러)이 안 떠 있습니다. **로봇 기동을 먼저 하겠습니다** — 'profile_up _autostart'로 zenoh→URDF→컨트롤러를 켭니다. 진행할까요?",
+        );
+      } else if (!swActive) {
+        lines.push("\n➡ 주행하려면 swerve_controller 활성화가 필요합니다(switch_controller, 승인).");
+      } else {
+        lines.push("\n✅ 준비 완료. 주행 테스트 전 정지 버튼(stop.html)을 열어 두세요.");
+      }
       return ok(lines.join("\n"));
     },
   );

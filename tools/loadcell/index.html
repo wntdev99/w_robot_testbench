@@ -86,21 +86,26 @@
     <div id="chans" style="margin-top:10px"></div>
   </div>
 
-  <!-- 캘리브레이션 -->
+  <!-- 보정: 영점 → 5점 → 풀이 -->
   <div class="panel">
-    <div class="row" style="justify-content:center;gap:10px">
-      <button class="b-blue"  onclick="tare()">① 영점</button>
-      <button class="b-teal"  onclick="span()">② 스팬</button>
-      <span style="color:var(--mut)">③ 코너:</span>
-      <button class="b-amber small" onclick="corner(0)">ch0</button>
-      <button class="b-amber small" onclick="corner(1)">ch1</button>
-      <button class="b-amber small" onclick="corner(2)">ch2</button>
-      <button class="b-amber small" onclick="corner(3)">ch3</button>
+    <div class="row" style="justify-content:center;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="b-blue small" onclick="tare()">① 영점</button>
+      <span style="color:var(--mut)">② 분동</span>
+      <input id="eccKg" type="number" step="0.1" placeholder="kg" style="width:80px">
+      <button class="b-amber small" onclick="eccCap('중앙')">중앙</button>
+      <button class="b-amber small" onclick="eccCap('채널0')">채널0</button>
+      <button class="b-amber small" onclick="eccCap('채널1')">채널1</button>
+      <button class="b-amber small" onclick="eccCap('채널2')">채널2</button>
+      <button class="b-amber small" onclick="eccCap('채널3')">채널3</button>
+      <button class="b-teal" onclick="eccSolve()">③ 풀이</button>
+      <button class="small" onclick="eccReset()">초기화</button>
     </div>
-    <div class="guide" style="margin-top:10px">
-      <b>① 영점</b> — 빈 상태를 0kg 기준으로(컨베이어 비우고).
-      <b>② 스팬</b> — 정중앙에 기준무게(≥30kg) 올리고 무게 입력.
-      <b>③ 코너</b> — 각 코너(ch0~3)에 분동 올린 뒤 해당 버튼. 모듈마다 따로 저장됩니다.
+    <div id="eccStatus" class="guide" style="margin-top:10px">
+      <b>① 영점</b> 무부하에서 0점 → <b>② 5점</b> 같은 분동을 중앙·채널0~3(각 셀) 위에 놓고 각각 캡처 → <b>③ 풀이</b>.
+      <br><b>풀이식</b> — 영점 후 각 셀 신호 d<sub>i</sub>, 분동무게 W. 모든 위치에서
+      &nbsp;<code>W = s₀·d₀ + s₁·d₁ + s₂·d₂ + s₃·d₃</code>&nbsp; 가 성립하는 셀별 배율 s<sub>i</sub>(4개)를
+      5점으로 <b>최소제곱</b>으로 구함 — 정규방정식 <code>(AᵀA)·s = Aᵀb</code> (A = 위치별 [d₀…d₃] 행렬, b = [W,…]).
+      → 어디 놓아도 합계 = W. (기존 스팬+코너 보정을 한 번에 대체)
     </div>
   </div>
 
@@ -263,15 +268,28 @@ async function tare(){
   setStatus("영점 측정 중…");
   const r=await api("/api/tare",{}); setStatus(r.ok?r.msg:r.error, r.ok?"ok":"err"); refreshCalib();
 }
-async function span(){
-  const kg=prompt("정중앙에 올린 기준무게(kg):"); if(kg===null) return;
-  setStatus("스팬 측정 중…");
-  const r=await api("/api/span",{kg:parseFloat(kg)}); setStatus(r.ok?r.msg:r.error, r.ok?"ok":"err"); refreshCalib();
+// ── 편심보정(5점) ──
+async function eccCap(label){
+  const kg=parseFloat(document.getElementById("eccKg").value);
+  if(!kg){ setStatus("분동 무게(kg)를 먼저 입력하세요","err"); return; }
+  setStatus(`${label} 캡처 중…`);
+  const r=await api("/api/ecc/capture",{kg,label});
+  if(r.ok){ setStatus(`${label} 캡처됨 (${r.count}점)`,"ok"); }
+  else setStatus(r.error,"err");
 }
-async function corner(ch){
-  const kg=prompt(`ch${ch} 코너에 올린 기준무게(kg):`); if(kg===null) return;
-  setStatus(`ch${ch} 코너 측정 중…`);
-  const r=await api("/api/corner",{kg:parseFloat(kg),channel:ch}); setStatus(r.ok?r.msg:r.error, r.ok?"ok":"err"); refreshCalib();
+async function eccSolve(){
+  setStatus("편심보정 계산 중…");
+  const r=await api("/api/ecc/solve",{});
+  if(r.ok){
+    const lines=r.samples.map(x=>`${x.label} ${x.meas}kg(목표${x.kg})`).join(" · ");
+    document.getElementById("eccStatus").innerHTML=`✅ 편심보정 완료 — 최대오차 <b>${r.max_err}kg</b><br>${lines}`;
+    setStatus(`편심보정 완료 (최대오차 ${r.max_err}kg)`,"ok"); refreshCalib();
+  } else setStatus(r.error,"err");
+}
+async function eccReset(){
+  await api("/api/ecc/reset",{});
+  document.getElementById("eccStatus").innerHTML="초기화됨. 영점 후 같은 분동을 중앙→채널0~3 순서로 캡처하세요.";
+  setStatus("편심 샘플 초기화","ok");
 }
 
 // ── 제품/항목 ──

@@ -47,6 +47,9 @@
   const btn = document.getElementById("stop");
   const log = document.getElementById("log");
   const baseEl = document.getElementById("base");
+  // ?base=<서버주소> 로 열면 자동 설정 (MCP가 자동 오픈 시 사용)
+  const _qsBase = new URLSearchParams(location.search).get("base");
+  if (_qsBase) baseEl.value = _qsBase;
 
   async function fireStop() {
     const base = baseEl.value.replace(/\/$/, "");
