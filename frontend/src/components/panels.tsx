@@ -1302,7 +1302,7 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
     // eslint-disable-next-line
   }, [src, maxLin, maxYaw]);
 
-  // 키보드 소스: i/k=전후, Shift 없으면 j/l=회전, Shift면 j/l=횡이동. 포커스 시에만.
+  // 키보드 소스: i/w=전진, ,/s=후진, j/a·l/d=회전(Shift면 횡이동), k/Space=정지. 포커스 시에만.
   useEffect(() => {
     if (src !== "keyboard") return;
     const prev = { moving: false };
@@ -1310,11 +1310,11 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
       const k = keysRef.current;
       const shift = k.has("shift");
       let x = 0, y = 0, z = 0;
-      if (!k.has("k")) {   // k = 정지(0). 누르면 전부 0
-        if (k.has("i")) x += maxLin;
-        if (k.has(",")) x -= maxLin;
-        if (shift) { if (k.has("j")) y += maxLin; if (k.has("l")) y -= maxLin; }
-        else { if (k.has("j")) z += maxYaw; if (k.has("l")) z -= maxYaw; }
+      if (!k.has("k") && !k.has("space")) {   // k 또는 Space = 정지(0). 누르면 전부 0
+        if (k.has("i") || k.has("w")) x += maxLin;
+        if (k.has(",") || k.has("s")) x -= maxLin;
+        if (shift) { if (k.has("j") || k.has("a")) y += maxLin; if (k.has("l") || k.has("d")) y -= maxLin; }
+        else { if (k.has("j") || k.has("a")) z += maxYaw; if (k.has("l") || k.has("d")) z -= maxYaw; }
       }
       const moving = x !== 0 || y !== 0 || z !== 0;
       if (kbFocusedRef.current && moving) { send(x, y, z); prev.moving = true; }
@@ -1324,7 +1324,7 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
     // eslint-disable-next-line
   }, [src, maxLin, maxYaw]);
 
-  const CODE: Record<string, string> = { KeyI: "i", KeyJ: "j", KeyK: "k", KeyL: "l", Comma: ",", ShiftLeft: "shift", ShiftRight: "shift" };
+  const CODE: Record<string, string> = { KeyI: "i", KeyJ: "j", KeyK: "k", KeyL: "l", Comma: ",", KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d", Space: "space", ShiftLeft: "shift", ShiftRight: "shift" };
   const onKbDown = (e: React.KeyboardEvent) => {
     const m = CODE[e.code]; if (!m) return; e.preventDefault();
     keysRef.current.add(m); setKeys(new Set(keysRef.current));
@@ -1404,11 +1404,11 @@ export function TeleopWidget({ panel, onChange, onRemove, canRemove }: {
             <div className="mx-auto flex w-72 items-center gap-3">
               <KbKey on={keys.has("shift")} label="Shift" sub="횡이동(y)" cls="w-20 shrink-0" />
               <div className="grid flex-1 grid-cols-3 gap-1.5">
-                <span /><KbKey on={keys.has("i")} label="I" sub="전진" /><span />
-                <KbKey on={keys.has("j")} label="J" sub={keys.has("shift") ? "횡 ←" : "좌회전"} />
-                <KbKey on={keys.has("k")} label="K" sub="정지" />
-                <KbKey on={keys.has("l")} label="L" sub={keys.has("shift") ? "횡 →" : "우회전"} />
-                <span /><KbKey on={keys.has(",")} label="," sub="후진" /><span />
+                <span /><KbKey on={keys.has("i") || keys.has("w")} label="I/W" sub="전진" /><span />
+                <KbKey on={keys.has("j") || keys.has("a")} label="J/A" sub={keys.has("shift") ? "횡 ←" : "좌회전"} />
+                <KbKey on={keys.has("k") || keys.has("space")} label="K/Spc" sub="정지" />
+                <KbKey on={keys.has("l") || keys.has("d")} label="L/D" sub={keys.has("shift") ? "횡 →" : "우회전"} />
+                <span /><KbKey on={keys.has(",") || keys.has("s")} label=",/S" sub="후진" /><span />
               </div>
             </div>
             <div className="mt-2 text-center font-mono text-xs text-ink-soft">x{pub.x.toFixed(2)} y{pub.y.toFixed(2)} z{pub.z.toFixed(2)}</div>
